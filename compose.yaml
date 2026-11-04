@@ -1,0 +1,55 @@
+# Pull-only stack for Dockhand on rootful Podman (arm64). No build section.
+# Set the variables below in the stack's environment in Dockhand; do not commit values. A variable written
+# ${NAME:?...} is required: the stack will not start without it. See docs/DEPLOY.md for how to make each value.
+services:
+  mcpopus:
+    image: ghcr.io/poag/mcpopus:latest
+    container_name: mcpopus
+    restart: unless-stopped
+    environment:
+      # Public name of the host, as claude.ai reaches it (https, no path).
+      MCPOPUS_PUBLIC_URL: ${MCPOPUS_PUBLIC_URL:-https://mcp.example.com}
+      # Encrypts stored secrets. Make with: mcpopus genkey. Losing it loses stored plugin secrets.
+      MCPOPUS_SECRET_KEY: ${MCPOPUS_SECRET_KEY:?set MCPOPUS_SECRET_KEY (mcpopus genkey)}
+      # Admin UI login password (14+ characters). The authenticator is set up in the admin UI on first sign-in.
+      MCPOPUS_ADMIN_PASSWORD: ${MCPOPUS_ADMIN_PASSWORD:?set MCPOPUS_ADMIN_PASSWORD}
+      # Connector sign-in password (the page claude.ai opens). Different from the admin one. Its authenticator
+      # is set up in the admin UI, under Sign-in.
+      MCPOPUS_OAUTH_PASSWORD: ${MCPOPUS_OAUTH_PASSWORD:?set MCPOPUS_OAUTH_PASSWORD}
+      # Optional: to supply authenticator secrets instead of scanning the QR code in the admin UI, uncomment these
+      # and set the values (make them with: mcpopus totp).
+      # MCPOPUS_ADMIN_TOTP_SECRET: ${MCPOPUS_ADMIN_TOTP_SECRET}
+      # MCPOPUS_OAUTH_TOTP_SECRET: ${MCPOPUS_OAUTH_TOTP_SECRET}
+      # Hostnames you use to open the admin UI, comma separated (IP addresses and localhost always work).
+      # Example: pi4.example.ts.net. Without the name you browse by, the admin page says "Misdirected request".
+      MCPOPUS_ADMIN_ALLOWED_HOSTS: ${MCPOPUS_ADMIN_ALLOWED_HOSTS:-}
+      # Log detail: INFO (default), WARNING, ERROR or DEBUG. Per-request access lines are off unless ACCESS_LOG is true.
+      MCPOPUS_LOG_LEVEL: ${MCPOPUS_LOG_LEVEL:-INFO}
+      MCPOPUS_ACCESS_LOG: ${MCPOPUS_ACCESS_LOG:-false}
+      # true only if the public port is reachable solely through Caddy; otherwise false.
+      MCPOPUS_TRUST_PROXY_HEADERS: ${MCPOPUS_TRUST_PROXY_HEADERS:-false}
+    ports:
+      # Public listener: put Caddy (and the tunnel) in front of this. Do not expose it to the internet directly.
+      - "8080:8080"
+      # Admin listener: internal only. Never route it through Caddy or the tunnel, and do not forward it on your router.
+      - "8081:8081"
+    volumes:
+      - mcpopus-config:/config
+      # Settings, the database, audit log, and plugins installed from sources (/data/sources) live here.
+      - mcpopus-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "mcpopus", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  mcpopus-config:
+  mcpopus-data:

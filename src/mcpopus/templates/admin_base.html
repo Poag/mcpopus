@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block shell %}
+<div class="shell">
+<aside class="side">
+<div class="brand">{{ icon("octopus", 26) }}<span>mcpopus</span></div>
+<nav aria-label="Admin">
+<a href="/" class="{{ 'active' if active == 'home' }}">{{ icon("home") }}Home</a>
+<a href="/plugins" class="{{ 'active' if active == 'plugins' }}">{{ icon("plugins") }}Plugins</a>
+<a href="/access" class="{{ 'active' if active == 'access' }}">{{ icon("access") }}Access</a>
+<a href="/audit" class="{{ 'active' if active == 'audit' }}">{{ icon("audit") }}Audit</a>
+<a href="/security" class="{{ 'active' if active == 'security' }}">{{ icon("signin") }}Sign-in</a>
+</nav>
+<form class="signout" method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf }}"><button>{{ icon("logout") }}Sign out</button></form>
+</aside>
+<div class="main">
+<header class="topbar">
+<span class="chip"><span class="dot"></span><span class="live">Live</span></span>
+<span class="chip">{{ shell.host }}</span>
+<span class="chip">mcpopus {{ shell.version }}</span>
+<span class="chip">{{ shell.loaded }} of {{ shell.total }} plugins loaded</span>
+<span class="chip">up {{ shell.uptime }}</span>
+</header>
+<div class="content">
+{% if flash %}<p class="flash" role="status">{{ flash }}</p>{% endif %}
+{% block content %}{% endblock %}
+</div>
+</div>
+</div>
+{% endblock %}

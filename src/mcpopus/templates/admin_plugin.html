@@ -1,0 +1,55 @@
+{% extends "admin_base.html" %}
+{% block title %} - {{ name }}{% endblock %}
+{% block content %}
+{% from "_icons.html" import icon %}
+<div class="pagehead">{{ icon("plugins", 22) }}<h1>{{ name }}</h1>{% set s = state.status if state else "unknown" %}<span class="pill {{ {'loaded': 'ok', 'error': 'bad', 'disabled': 'warn'}.get(s, 'grey') }}">{{ s }}</span><span class="sub">{{ url }}</span></div>
+{% if state and state.error %}<p class="err-text">{{ state.error }}</p>{% endif %}
+{% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
+
+<h2>Settings</h2>
+<div class="panel">
+{% if has_model %}
+<form method="post" action="/plugins/{{ name }}/config" autocomplete="off">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+{% for f in fields %}
+<label for="f_{{ f.name }}">{{ f.label }}{% if f.required %} *{% endif %}</label>
+{% if f.kind == "checkbox" %}
+<input type="checkbox" id="f_{{ f.name }}" name="f_{{ f.name }}" value="1" {{ "checked" if f.value }}>
+{% elif f.kind == "select" %}
+<select id="f_{{ f.name }}" name="f_{{ f.name }}">{% for o in f.options %}<option {{ "selected" if f.value|string == o }}>{{ o }}</option>{% endfor %}</select>
+{% elif f.kind in ("lines", "json") %}
+<textarea id="f_{{ f.name }}" name="f_{{ f.name }}" rows="4">{{ f.value if f.value is not none }}</textarea>
+{% elif f.kind == "secret" %}
+<input type="password" id="f_{{ f.name }}" name="f_{{ f.name }}" autocomplete="new-password" placeholder="{{ 'set; leave blank to keep' if f.secret_set else 'not set' }}">
+{% if f.secret_set %}<label><input type="checkbox" name="clear_{{ f.name }}" value="1"> Clear the stored value</label>{% endif %}
+{% else %}
+<input id="f_{{ f.name }}" name="f_{{ f.name }}" type="{{ 'number' if f.kind == 'number' else 'text' }}" {% if f.step %}step="{{ f.step }}"{% endif %} value="{{ f.value if f.value is not none }}" placeholder="{{ f.default if f.default is not none }}">
+{% endif %}
+{% if f.description %}<span class="mut">{{ f.description }}</span>{% endif %}
+{% endfor %}
+<p><button class="primary">Save and reload</button></p>
+</form>
+{% else %}<p class="mut">This plugin has no settings.</p>{% endif %}
+
+</div>
+<h2>Policy</h2>
+<div class="panel">
+<form method="post" action="/plugins/{{ name }}/policy">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+{% if tools %}
+<p class="mut">Tick the tools this plugin should serve. A new plugin starts with only its read tools on. Write and admin tools can change or delete data, and a plugin may have its own settings (for example folders it may write to) that must also allow it.</p>
+<table class="grid"><tr><th style="width:5rem">Served</th><th>Tool</th><th>Kind</th></tr>
+{% for t in tools %}<tr>
+<td><input type="checkbox" id="tool_{{ t.name }}" name="tool_{{ t.name }}" value="1" {{ "checked" if t.served }}></td>
+<td><label for="tool_{{ t.name }}" style="margin:0">{{ t.name }}</label>{% if t.untrusted %} <span class="mut">(untrusted output)</span>{% endif %}</td>
+<td>{% if t.kind == "tool" and t.tier != "read" %}<strong class="err">{{ t.tier }}</strong>{% else %}{{ t.tier if t.kind == "tool" else t.kind }}{% endif %}</td></tr>{% endfor %}
+</table>
+{% else %}<p class="mut">Load the plugin to choose which of its tools are served.</p>{% endif %}
+<label for="rate_limit_per_minute">Calls per minute (0 for no limit)</label>
+<input id="rate_limit_per_minute" name="rate_limit_per_minute" type="number" min="0" value="{{ policy.rate_limit_per_minute }}">
+<label for="max_output_bytes">Output cap in bytes</label>
+<input id="max_output_bytes" name="max_output_bytes" type="number" min="1024" max="4194304" value="{{ policy.max_output_bytes }}">
+<p><button class="primary">Save policy and reload</button></p>
+</form>
+</div>
+{% endblock %}

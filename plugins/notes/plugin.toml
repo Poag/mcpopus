@@ -1,0 +1,4 @@
+name = "notes"
+version = "0.1.0"
+description = "Worked example: plain-text notes kept in the plugin's data directory."
+min_host_version = "0.1.0"

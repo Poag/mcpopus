@@ -1,0 +1,19 @@
+{% extends "admin_base.html" %}
+{% block title %} - Set up authenticator{% endblock %}
+{% block content %}
+{% from "_icons.html" import icon %}<div class="pagehead">{{ icon("signin", 22) }}<h1>Set up the authenticator for {{ label }}</h1></div>
+{% if enrol_only %}<p>This is the first sign-in. Set up the authenticator now; nothing else is available until you do.</p>{% endif %}
+<p>Scan this code with your authenticator app:</p>
+<div class="panel" style="display:inline-block;padding:1rem;background:#fff" role="img" aria-label="QR code for the authenticator key below">{{ qr | safe }}</div>
+<p>Or choose "enter a setup key" and use these details (time-based, 6 digits, 30 seconds, SHA-1):</p>
+<dl><dt>Key</dt><dd><code>{{ secret }}</code></dd><dt>Account</dt><dd>mcpopus {{ realm }}</dd></dl>
+<p class="mut">Some apps open the link instead: <code>{{ uri }}</code></p>
+<p class="mut">Shown only on this page. Reloading it keeps the same key until you confirm; signing out discards it.</p>
+{% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="/enrol" autocomplete="off">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<label for="totp">Code from the app</label>
+<input id="totp" name="totp" inputmode="numeric" maxlength="8" autocomplete="one-time-code" required>
+<p><button class="primary">Confirm and save</button></p>
+</form>
+{% endblock %}

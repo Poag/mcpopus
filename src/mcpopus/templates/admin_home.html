@@ -1,0 +1,33 @@
+{% extends "admin_base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %} - Home{% endblock %}
+{% block content %}
+<div class="pagehead">{{ icon("home", 22) }}<h1>Home</h1></div>
+<div class="stats">
+<div class="stat"><span class="k">Plugins</span><span class="v">{{ stats.loaded }}<small> / {{ stats.plugins }} loaded</small></span></div>
+<div class="stat"><span class="k">Tools exposed</span><span class="v">{{ stats.tools }}</span></div>
+<div class="stat"><span class="k">Connected clients</span><span class="v">{{ stats.clients }}<small> registered, {{ stats.grants }} active grants</small></span></div>
+<div class="stat {{ 'warn' if stats.problems }}"><span class="k">Problems</span><span class="v">{{ stats.problems }}</span></div>
+</div>
+<div class="pagehead" style="margin-top:1.4rem">{{ icon("plugins", 20) }}<h2 style="margin:0">Plugins</h2><span class="count">{{ plugins | length }}</span><span class="spacer"></span><a class="btn" href="/plugins">Manage plugins and sources</a></div>
+<div class="cards">
+{% for p in plugins %}{% set s = "disabled" if not p.enabled else p.st.status %}
+<div class="pcard">
+<div class="top"><div class="name">{{ icon("plugins", 20) }}<a href="/plugins/{{ p.st.name }}">{{ p.st.name }}</a></div><span class="pill {{ {'loaded': 'ok', 'error': 'bad', 'disabled': 'warn'}.get(s, 'grey') }}">{{ s }}</span></div>
+{% if p.st.description %}<p class="desc">{{ p.st.description }}</p>{% endif %}
+{% if p.st.error %}<p class="err-text" style="font-size:.8rem">{{ p.st.error }}</p>{% endif %}
+<div class="url sub">{{ p.url }}</div>
+<dl><div><dt>Version</dt><dd>{{ p.st.version or "-" }}</dd></div><div><dt>Tools</dt><dd>{{ p.st.tools | length }}</dd></div><div><dt>Origin</dt><dd>{{ "source" if p.from_source else "folder" }}</dd></div></dl>
+<div class="acts">
+{% if p.st.status == "loaded" %}
+<form method="post" action="/plugins/{{ p.st.name }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="reload"><button class="ib" title="Reload" aria-label="Reload {{ p.st.name }}">{{ icon("reload") }}</button></form>
+<form method="post" action="/plugins/{{ p.st.name }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="unload"><button class="ib" title="Unload" aria-label="Unload {{ p.st.name }}">{{ icon("stop") }}</button></form>
+{% else %}
+<form method="post" action="/plugins/{{ p.st.name }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="load"><button class="ib" title="Load" aria-label="Load {{ p.st.name }}">{{ icon("play") }}</button></form>
+{% endif %}
+<a class="ib" href="/plugins/{{ p.st.name }}" title="Settings" aria-label="Settings for {{ p.st.name }}">{{ icon("settings") }}</a>
+</div>
+</div>
+{% else %}<p class="mut">No plugins yet. <a href="/plugins#sources">Install one from a source.</a></p>{% endfor %}
+</div>
+{% endblock %}

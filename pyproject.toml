@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcpopus"
+version = "0.1.0"
+description = "Self-hosted MCP host: several MCP endpoints from one process, OAuth, runtime-loadable plugins."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+# Every runtime dependency is declared here, including ones that are only
+# imported lazily (argon2, jinja2, httpx2, multipart). Exact pins: the image is
+# built from requirements.lock, which is generated from these.
+dependencies = [
+    "mcp==2.3.0",
+    "starlette==1.10.0",
+    "uvicorn==0.54.0",
+    "pydantic==2.14.2",
+    "cryptography==50.0.2",
+    "argon2-cffi==25.1.0",
+    "jinja2==3.1.6",
+    "python-multipart==0.0.33",
+    "httpx2==2.16.0",
+    "segno==1.6.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.2.0",
+    "pytest-asyncio==1.4.1.post1",
+]
+
+[project.scripts]
+mcpopus = "mcpopus.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcpopus"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning:uvicorn.*"]

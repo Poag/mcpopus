@@ -1,0 +1,14 @@
+{% extends "admin_base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %} - Audit{% endblock %}
+{% block content %}
+<div class="pagehead">{{ icon("audit", 22) }}<h1>Audit</h1><span class="count">{{ rows | length }}</span></div>
+<div class="toolbar"><form method="get" action="/audit" role="search"><label class="sr" for="plugin">Plugin</label><input id="plugin" type="search" name="plugin" value="{{ plugin }}" maxlength="32" placeholder="Filter by plugin name"><button>{{ icon("search") }}Filter</button>{% if plugin %}<a class="btn" href="/audit">Clear</a>{% endif %}</form></div>
+<p class="mut">Argument names, status, duration and size only. Argument values and results are never recorded.</p>
+<table class="grid"><tr><th>Time (UTC)</th><th>Plugin</th><th>Tool</th><th>Arguments</th><th>Status</th><th>ms</th><th>Bytes</th><th>Client</th></tr>
+{% for r in rows %}<tr><td class="num">{{ r.ts }}</td><td>{{ r.plugin }}</td><td class="num">{{ r.tool }}</td><td class="sub">{{ r.arg_names | join(", ") }}</td>
+<td><span class="pill {{ 'ok' if r.status == 'ok' else 'warn' if r.status in ('denied', 'rate_limited') else 'bad' }}">{{ r.status }}</span></td>
+<td class="num">{{ r.duration_ms }}</td><td class="num">{{ r.size }}</td><td class="sub"><code>{{ r.client_id or "" }}</code></td></tr>
+{% else %}<tr><td colspan="8" class="mut">No entries.</td></tr>{% endfor %}
+</table>
+{% endblock %}

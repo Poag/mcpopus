@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %} - Authorise connector{% endblock %}
+{% block body %}
+<h1>Authorise connector</h1>
+<p>An application is asking for access to one connector on this server.</p>
+<dl>
+<dt>Connector</dt><dd><strong>{{ plugin }}</strong></dd>
+<dt>Application</dt><dd>{{ client_name }}</dd>
+<dt>Returns to</dt><dd><strong>{{ redirect_host }}</strong><br><span class="mut">{{ redirect_uri }}</span></dd>
+</dl>
+{% if loopback %}<p class="err">This application will return to a port on the device running it. Only continue if you started this yourself.</p>{% endif %}
+<p class="mut">Access is limited to the {{ plugin }} connector. Other connectors on this server stay closed to it.</p>
+{% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
+<form method="post" action="/oauth/authorize" autocomplete="off">
+<input type="hidden" name="request_id" value="{{ request_id }}">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<label for="password">Password</label>
+<input id="password" name="password" type="password" autocomplete="current-password" required>
+<label for="totp">Authenticator code</label>
+<input id="totp" name="totp" inputmode="numeric" pattern="[0-9 ]*" maxlength="8" autocomplete="one-time-code" required>
+<p><button class="primary" name="decision" value="approve">Approve</button>
+<button name="decision" value="deny" formnovalidate>Deny</button></p>
+</form>
+{% endblock %}

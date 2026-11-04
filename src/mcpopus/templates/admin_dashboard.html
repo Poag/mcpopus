@@ -1,0 +1,86 @@
+{% extends "admin_base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %} - Plugins{% endblock %}
+{% macro act(action, name, label, ico, cls="") -%}
+<form method="post" action="/plugins/{{ name }}/action"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="{{ action }}"><button class="ib {{ cls }}" title="{{ label }}" aria-label="{{ label }} {{ name }}">{{ icon(ico) }}</button></form>
+{%- endmacro %}
+{% block content %}
+<div class="pagehead">{{ icon("plugins", 22) }}<h1>Plugins</h1><span class="count">{{ plugins | length }}{% if plugins | length != total %} of {{ total }}{% endif %}</span></div>
+<div class="toolbar">
+<form method="get" action="/plugins" role="search">
+<label class="sr" for="q">Search plugins</label>
+<input id="q" type="search" name="q" value="{{ q }}" placeholder="Search name or description" maxlength="60">
+<label class="sr" for="state">Status</label>
+<select id="state" name="state">{% for v, l in [("", "All statuses"), ("loaded", "Loaded"), ("unloaded", "Unloaded"), ("disabled", "Disabled"), ("error", "Error")] %}<option value="{{ v }}" {{ "selected" if state == v }}>{{ l }}</option>{% endfor %}</select>
+<button>{{ icon("search") }}Filter</button>
+{% if q or state %}<a class="btn" href="/plugins">Clear</a>{% endif %}
+</form>
+<span class="spacer"></span>
+<a class="btn" href="/plugins">{{ icon("reload") }}Refresh</a>
+<a class="btn" href="#sources">{{ icon("git") }}Sources</a>
+</div>
+<table class="grid">
+<tr><th>Name</th><th>Status</th><th>Version</th><th>Tools</th><th>Origin</th><th style="text-align:right">Actions</th></tr>
+{% for p in plugins %}
+<tr>
+<td><div class="name">{{ icon("plugins") }}<div><a href="/plugins/{{ p.st.name }}">{{ p.st.name }}</a><div class="sub">{{ p.url }}</div>{% if p.st.description %}<div class="mut" style="font-size:.78rem">{{ p.st.description }}</div>{% endif %}</div></div></td>
+<td>{% set s = "disabled" if not p.enabled else p.st.status %}<span class="pill {{ {'loaded': 'ok', 'error': 'bad', 'disabled': 'warn'}.get(s, 'grey') }}">{{ s }}</span>{% if p.st.error %}<div class="err-text" style="font-size:.78rem;margin-top:.25rem;max-width:26rem">{{ p.st.error }}</div>{% endif %}</td>
+<td class="num">{{ p.st.version or "-" }}</td>
+<td class="num" title="{{ p.st.tools | join(', ') }}">{{ p.st.tools | length }}{% if p.st.tools %} <span class="sub">{{ p.st.tools[:3] | join(", ") }}{% if p.st.tools | length > 3 %}, ...{% endif %}</span>{% endif %}</td>
+<td>{% if p.from_source %}<span class="pill grey">{{ icon("git", 13) }}source</span>{% else %}<span class="pill grey">folder</span>{% endif %}</td>
+<td><div class="acts">
+{% if p.st.status == "loaded" %}{{ act("reload", p.st.name, "Reload", "reload") }}{{ act("unload", p.st.name, "Unload", "stop") }}{% else %}{{ act("load", p.st.name, "Load", "play") }}{% endif %}
+{{ act("disable" if p.enabled else "enable", p.st.name, "Disable" if p.enabled else "Enable", "power") }}
+<a class="ib" href="/plugins/{{ p.st.name }}" title="Settings" aria-label="Settings for {{ p.st.name }}">{{ icon("settings") }}</a>
+{% if p.from_source %}<form method="post" action="/plugins/{{ p.st.name }}/uninstall"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="ib danger" title="Uninstall" aria-label="Uninstall {{ p.st.name }}">{{ icon("trash") }}</button></form>{% endif %}
+</div></td></tr>
+{% else %}<tr><td colspan="6" class="mut">{% if q or state %}No plugin matches this filter.{% else %}No plugins found. Install one from a source below, or put a folder in the plugins directory.{% endif %}</td></tr>{% endfor %}
+</table>
+
+<div class="sect" id="sources">
+<div class="pagehead">{{ icon("git", 22) }}<h1>Plugin sources</h1><span class="count">{{ sources | length }}</span></div>
+<p class="mut">Git repositories to install plugins from. <strong>Plugins are code that runs inside this host</strong> and can read its memory and
+every stored secret. Only add repositories you trust, and read what you install. Nothing updates by itself: fetching only downloads, and a
+plugin keeps running the commit you applied until you apply an update. Public https repositories only.</p>
+{% for src in sources %}
+<div class="panel" style="margin-top:1rem">
+<h3>{{ src.url }} <span class="mut">({{ src.ref }}){% if src.default %} default{% endif %}</span></h3>
+<p class="mut">{% if src.fetched %}applied <code>{{ src.applied[:10] }}</code>{% if src.has_update %} <span class="pill warn">update available {{ src.head[:10] }}</span>{% else %} <span class="pill ok">up to date</span>{% endif %}{% else %}<span class="pill grey">not fetched yet</span>{% endif %}
+{% if src.browse %} <a href="{{ src.browse }}/tree/{{ src.applied or src.ref }}/plugins" rel="noreferrer noopener" target="_blank">browse the code</a>{% endif %}</p>
+<form class="inline" method="post" action="/sources/{{ src.id }}/fetch"><input type="hidden" name="csrf" value="{{ csrf }}"><button>{{ icon("download") }}{{ "Fetch updates" if src.fetched else "Fetch" }}</button></form>
+<form class="inline" method="post" action="/sources/{{ src.id }}/remove"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">{{ icon("trash") }}Remove source</button></form>
+{% if src.has_update %}
+<h4>Update available</h4>
+{% if src.pending.log %}<pre>{{ src.pending.log }}</pre>{% endif %}{% if src.pending.stat %}<pre>{{ src.pending.stat }}</pre>{% endif %}
+<form method="post" action="/sources/{{ src.id }}/apply"><input type="hidden" name="csrf" value="{{ csrf }}">
+<label><input type="checkbox" name="trust" value="1" required> I have reviewed this update and trust it. Installed plugins from this source will reload.</label>
+<p><button class="primary">Apply update</button></p></form>
+{% endif %}
+{% if src.fetched %}
+<table class="grid" style="margin-top:.8rem"><tr><th>Plugin</th><th>Version</th><th>Description</th><th style="text-align:right">Install</th></tr>
+{% for p in src.plugins %}<tr><td><div class="name">{{ icon("plugins") }}{{ p.name }}</div></td><td class="num">{{ p.version }}</td><td>{{ p.description }}{% if p.problem %}<br><span class="err-text">{{ p.problem }}</span>{% endif %}</td><td>
+{% if p.problem %}{% elif p.installed %}<div class="acts"><span class="pill ok">installed</span>
+<form method="post" action="/plugins/{{ p.name }}/uninstall"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Uninstall</button></form></div>
+{% else %}
+<form method="post" action="/plugins/{{ p.name }}/install" class="acts"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="source" value="{{ src.id }}">
+<label style="margin:0"><input type="checkbox" name="trust" value="1" required> I trust this code</label> <button class="primary">Install</button></form>
+{% endif %}</td></tr>
+{% else %}<tr><td colspan="4" class="mut">No plugins found under plugins/ in this repository.</td></tr>{% endfor %}
+</table>
+{% endif %}
+</div>
+{% else %}<p>No sources.</p>{% endfor %}
+
+<h3>Add a source</h3>
+<div class="panel">
+<form method="post" action="/sources/add" autocomplete="off">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<label for="url">Repository URL (https)</label><input id="url" name="url" placeholder="https://github.com/you/your-plugins" maxlength="300" required>
+<label for="ref">Branch or tag</label><input id="ref" name="ref" value="main" maxlength="100">
+<label><input type="checkbox" name="trust" value="1" required> I trust this repository. I understand its plugins run inside this host with access to its secrets.</label>
+<p class="mut">Expected layout: <code>plugins/&lt;name&gt;/plugin.toml</code> and <code>__init__.py</code>.</p>
+<p><button class="primary">Add and fetch</button></p>
+</form>
+</div>
+</div>
+{% endblock %}

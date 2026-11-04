@@ -1,0 +1,12 @@
+{% extends "admin_base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %} - Sign-in{% endblock %}
+{% block content %}
+<div class="pagehead">{{ icon("signin", 22) }}<h1>Sign-in</h1></div>
+<table class="grid"><tr><th>Login</th><th>State</th><th style="text-align:right">Actions</th></tr>
+{% for r in rows %}<tr><td>{{ r.label }}</td>
+<td><span class="pill {{ 'ok' if r.state == 'authenticator set up' else 'warn' if 'not set up' in r.state else 'bad' }}">{{ r.state }}</span></td>
+<td><div class="acts"><form method="post" action="/security/start"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="realm" value="{{ r.realm }}"><button>{{ "Replace authenticator" if r.state == "authenticator set up" else "Set up authenticator" }}</button></form></div></td></tr>{% endfor %}
+</table>
+<p class="mut">Passwords are set in the stack's environment (MCPOPUS_ADMIN_PASSWORD, MCPOPUS_OAUTH_PASSWORD). The authenticator key is created here, or supplied in MCPOPUS_*_TOTP_SECRET.</p>
+{% endblock %}

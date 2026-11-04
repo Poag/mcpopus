@@ -1,0 +1,33 @@
+{% extends "admin_base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %} - Access{% endblock %}
+{% block content %}
+<div class="pagehead">{{ icon("access", 22) }}<h1>Access</h1></div>
+<h2>Grants <span class="count">{{ grants | length }}</span></h2>
+<p class="mut">One grant per authorisation. Revoking a grant ends its tokens at once.</p>
+<table class="grid"><tr><th>Application</th><th>Plugin</th><th>Created (UTC)</th><th>State</th><th style="text-align:right">Actions</th></tr>
+{% for g in grants %}<tr><td>{{ g.client }}</td><td class="num">{{ g.plugin }}</td><td class="num">{{ g.created }}</td>
+<td>{% if g.revoked %}<span class="pill grey">revoked</span>{% else %}<span class="pill ok">active</span>{% endif %}</td>
+<td><div class="acts">{% if not g.revoked %}<form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="grant" value="{{ g.id }}"><button class="danger">{{ icon("stop", 14) }}Revoke tokens</button></form>{% endif %}</div></td></tr>
+{% else %}<tr><td colspan="5" class="mut">No grants yet.</td></tr>{% endfor %}
+</table>
+<h2>Clients <span class="count">{{ clients | length }}</span></h2>
+<table class="grid"><tr><th>Name</th><th>Kind</th><th>Client ID</th><th>Return addresses</th><th>State</th><th style="text-align:right">Actions</th></tr>
+{% for c in clients %}<tr><td>{{ c.name }}</td><td>{{ c.kind }}{% if c.resource %}<div class="sub">bound to {{ c.resource }}</div>{% endif %}</td><td class="num"><code>{{ c.client_id }}</code></td>
+<td class="sub">{% for u in c.redirect_uris %}{{ u }}<br>{% endfor %}</td>
+<td>{% if c.revoked %}<span class="pill grey">revoked</span>{% else %}<span class="pill ok">active</span>{% endif %}</td>
+<td><div class="acts">{% if not c.revoked %}<form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="client" value="{{ c.client_id }}"><button class="danger">Revoke</button></form>{% endif %}
+<form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="delete_client" value="{{ c.client_id }}"><button class="ib danger" title="Delete" aria-label="Delete client {{ c.name }}">{{ icon("trash") }}</button></form></div></td></tr>
+{% else %}<tr><td colspan="6" class="mut">No clients yet.</td></tr>{% endfor %}
+</table>
+<h2>Add a pre-registered client</h2>
+<div class="panel"><form method="post" action="/access/client">
+<input type="hidden" name="csrf" value="{{ csrf }}">
+<label for="name">Name</label><input id="name" name="name" value="Claude" maxlength="80">
+<label for="redirect_uris">Return addresses (one per line)</label><textarea id="redirect_uris" name="redirect_uris" rows="2">{{ default_redirect }}</textarea>
+<label for="plugin">Pin to one plugin (optional)</label>
+<select id="plugin" name="plugin"><option value="">Any (the request names the plugin)</option>{% for p in plugins %}<option>{{ p }}</option>{% endfor %}</select>
+<label><input type="checkbox" name="public" value="1"> Public client (no secret)</label>
+<p><button class="primary">Create</button></p>
+</form></div>
+{% endblock %}

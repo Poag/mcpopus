@@ -1,0 +1,4 @@
+name = "hello"
+version = "0.1.0"
+description = "Spike plugin: one read-only tool, used to prove the connector flow."
+min_host_version = "0.1.0"
