@@ -2,6 +2,7 @@
 {% block title %} - {{ name }}{% endblock %}
 {% block content %}
 {% from "_icons.html" import icon %}
+{% from "_stats.html" import bars %}
 <div class="pagehead">{{ icon("plugins", 22) }}<h1>{{ name }}</h1>{% set s = state.status if state else "unknown" %}<span class="pill {{ {'loaded': 'ok', 'error': 'bad', 'disabled': 'warn'}.get(s, 'grey') }}">{{ s }}</span><span class="sub">{{ url }}</span></div>
 {% if state and state.error %}<p class="err-text">{{ state.error }}</p>{% endif %}
 {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
@@ -31,6 +32,27 @@
 </form>
 {% else %}<p class="mut">This plugin has no settings.</p>{% endif %}
 
+</div>
+<h2>Usage</h2>
+<div class="panel">
+<div class="stats" style="margin-top:.8rem">
+<div class="stat"><span class="k">Today</span><span class="v">{{ usage_day.calls }}<small> calls, {{ usage_day.errors }} failed</small></span></div>
+<div class="stat"><span class="k">Last 7 days</span><span class="v">{{ usage_week.calls }}<small> calls, {{ usage_week.errors }} failed</small></span></div>
+<div class="stat"><span class="k">Returned (7 days)</span><span class="v">{{ usage_week.bytes_out | bytes }}<small> to the model, {{ usage_week.bytes_in | bytes }} in</small></span></div>
+<div class="stat"><span class="k">Average time (7 days)</span><span class="v">{{ usage_week.avg_ms }}<small> ms per call</small></span></div>
+</div>
+<div style="margin-top:.8rem">{{ bars(usage_days) }}</div>
+{% if usage_tools %}
+<table class="grid" style="margin-top:.8rem"><tr><th>Tool (7 days)</th><th>Calls</th><th>Failed</th><th>Refused</th><th>Avg ms</th><th>Max ms</th><th>Returned</th><th>Last used</th></tr>
+{% for t in usage_tools %}<tr><td class="num">{{ t.tool }}</td><td class="num">{{ t.calls }}</td><td class="num">{{ t.errors }}</td><td class="num">{{ t.denied + t.limited }}</td><td class="num">{{ t.avg_ms }}</td><td class="num">{{ t.ms_max | round(1) }}</td><td class="num">{{ t.bytes_out | bytes }}</td><td class="num">{{ t.last | ago }}</td></tr>{% endfor %}
+</table>
+{% else %}<p class="mut">No calls recorded yet.</p>{% endif %}
+{% if usage_counters %}
+<h4>Counters kept by the plugin (30 days)</h4>
+<table class="grid"><tr><th>Name</th><th style="text-align:right">Total</th></tr>
+{% for k, v in usage_counters.items() %}<tr><td class="num">{{ k }}</td><td class="num" style="text-align:right">{% if k.startswith("bytes") %}{{ v | bytes }}{% else %}{{ v | int }}{% endif %}</td></tr>{% endfor %}
+</table>{% endif %}
+<p class="mut" style="font-size:.78rem">Only counts and sizes are kept, never arguments or results. Days are UTC; 90 days are retained.</p>
 </div>
 <h2>Policy</h2>
 <div class="panel">

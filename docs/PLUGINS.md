@@ -67,6 +67,18 @@ What happens:
 | `logger` | `logging.Logger` named `mcpopus.plugin.<name>`; registered secrets are redacted from its output |
 | `http` | an `httpx2.AsyncClient` (15 s timeout, no redirects followed, 10 connections) |
 | `audit` | a callable that adds a line to the audit log (rarely needed: tool calls are audited for you) |
+| `stats` | `ctx.stats.count("bytes_written", n)` adds to a named usage counter shown on the plugin's page (see Usage statistics). Absent on hosts older than 0.2.0: use `getattr(self.ctx, "stats", None)` |
+
+## Usage statistics
+
+The host records every tool call for you: calls, failures, refused calls (policy or rate limit), time, the size of the arguments and
+the size of the result, per day, plugin, client and tool. It never stores argument values or result content. The plugin's admin page shows
+today and the last 7 days, a 14-day chart and a table per tool; the Home cards show today's calls and when each plugin was last used; the
+Access page shows calls and last use per client. Days are UTC and 90 days are kept.
+
+A plugin can add its own counters with `self.ctx.stats.count(name, amount)`, for example bytes written or notes deleted. Names are lower
+case letters, digits and underscores (at most 40 characters), amounts must be zero or more, and each plugin may keep 20 distinct names.
+Counters whose name starts with `bytes` are shown as sizes. Never count anything that identifies content.
 
 ## Config schema and secrets
 

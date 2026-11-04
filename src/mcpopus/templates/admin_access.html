@@ -12,13 +12,14 @@
 {% else %}<tr><td colspan="5" class="mut">No grants yet.</td></tr>{% endfor %}
 </table>
 <h2>Clients <span class="count">{{ clients | length }}</span></h2>
-<table class="grid"><tr><th>Name</th><th>Kind</th><th>Client ID</th><th>Return addresses</th><th>State</th><th style="text-align:right">Actions</th></tr>
+<table class="grid"><tr><th>Name</th><th>Kind</th><th>Client ID</th><th>Return addresses</th><th>Calls (30 days)</th><th>Last used</th><th>State</th><th style="text-align:right">Actions</th></tr>
 {% for c in clients %}<tr><td>{{ c.name }}</td><td>{{ c.kind }}{% if c.resource %}<div class="sub">bound to {{ c.resource }}</div>{% endif %}</td><td class="num"><code>{{ c.client_id }}</code></td>
 <td class="sub">{% for u in c.redirect_uris %}{{ u }}<br>{% endfor %}</td>
+{% set u = usage.get(c.client_id, {}) %}<td class="num">{{ u.calls or 0 }}{% if u.errors %} <span class="sub">({{ u.errors }} failed)</span>{% endif %}</td><td class="num">{{ (u.last or 0) | ago }}</td>
 <td>{% if c.revoked %}<span class="pill grey">revoked</span>{% else %}<span class="pill ok">active</span>{% endif %}</td>
 <td><div class="acts">{% if not c.revoked %}<form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="client" value="{{ c.client_id }}"><button class="danger">Revoke</button></form>{% endif %}
 <form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="delete_client" value="{{ c.client_id }}"><button class="ib danger" title="Delete" aria-label="Delete client {{ c.name }}">{{ icon("trash") }}</button></form></div></td></tr>
-{% else %}<tr><td colspan="6" class="mut">No clients yet.</td></tr>{% endfor %}
+{% else %}<tr><td colspan="8" class="mut">No clients yet.</td></tr>{% endfor %}
 </table>
 <h2>Add a pre-registered client</h2>
 <div class="panel"><form method="post" action="/access/client">

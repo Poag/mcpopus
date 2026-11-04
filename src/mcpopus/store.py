@@ -34,6 +34,15 @@ CREATE TABLE IF NOT EXISTS tokens (
   token_hash TEXT PRIMARY KEY, kind TEXT NOT NULL, grant_id TEXT NOT NULL,
   created_at REAL NOT NULL, expires_at REAL NOT NULL, used_at REAL);
 CREATE INDEX IF NOT EXISTS tokens_grant ON tokens(grant_id);
+CREATE TABLE IF NOT EXISTS usage (
+  day TEXT NOT NULL, plugin TEXT NOT NULL, client_id TEXT NOT NULL, tool TEXT NOT NULL,
+  calls INTEGER NOT NULL DEFAULT 0, errors INTEGER NOT NULL DEFAULT 0, denied INTEGER NOT NULL DEFAULT 0,
+  limited INTEGER NOT NULL DEFAULT 0, ms_total REAL NOT NULL DEFAULT 0, ms_max REAL NOT NULL DEFAULT 0,
+  bytes_in INTEGER NOT NULL DEFAULT 0, bytes_out INTEGER NOT NULL DEFAULT 0, last_ts REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, plugin, client_id, tool));
+CREATE TABLE IF NOT EXISTS counters (
+  day TEXT NOT NULL, plugin TEXT NOT NULL, name TEXT NOT NULL, value REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, plugin, name));
 CREATE TABLE IF NOT EXISTS admin_sessions (
   id_hash TEXT PRIMARY KEY, csrf TEXT NOT NULL, created_at REAL NOT NULL, expires_at REAL NOT NULL);
 """

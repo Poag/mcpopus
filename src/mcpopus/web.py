@@ -13,6 +13,11 @@ env = Environment(
     autoescape=select_autoescape(["html"]),  # autoescape on: all variables are HTML-escaped
 )
 
+from .stats import ago, human_bytes  # noqa: E402
+
+env.filters["bytes"] = human_bytes
+env.filters["ago"] = ago
+
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",
     "Pragma": "no-cache",

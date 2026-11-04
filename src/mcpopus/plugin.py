@@ -88,6 +88,12 @@ class PluginContext:
     logger: logging.Logger
     http: httpx2.AsyncClient
     audit: AuditHook
+    stats: Any = None  # StatsHook: stats.count("bytes_written", n). Absent on hosts older than 0.2.0, so use getattr(ctx, "stats", None)
+
+
+class NullStatsHook:
+    def count(self, name: str, amount: float = 1) -> None:
+        return None
 
 
 class Plugin:

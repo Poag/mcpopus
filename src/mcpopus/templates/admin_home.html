@@ -1,5 +1,6 @@
 {% extends "admin_base.html" %}
 {% from "_icons.html" import icon %}
+{% from "_stats.html" import bars %}
 {% block title %} - Home{% endblock %}
 {% block content %}
 <div class="pagehead">{{ icon("home", 22) }}<h1>Home</h1></div>
@@ -7,8 +8,10 @@
 <div class="stat"><span class="k">Plugins</span><span class="v">{{ stats.loaded }}<small> / {{ stats.plugins }} loaded</small></span></div>
 <div class="stat"><span class="k">Tools exposed</span><span class="v">{{ stats.tools }}</span></div>
 <div class="stat"><span class="k">Connected clients</span><span class="v">{{ stats.clients }}<small> registered, {{ stats.grants }} active grants</small></span></div>
+<div class="stat"><span class="k">Calls today</span><span class="v">{{ today.calls }}<small> {{ today.errors }} failed, {{ today.bytes_out | bytes }} returned</small></span></div>
 <div class="stat {{ 'warn' if stats.problems }}"><span class="k">Problems</span><span class="v">{{ stats.problems }}</span></div>
 </div>
+<div class="panel" style="margin-top:1rem;padding-top:.8rem"><div class="mut" style="font-size:.8rem;margin-bottom:.4rem">Tool calls per day, last 14 days (UTC)</div>{{ bars(week) }}</div>
 <div class="pagehead" style="margin-top:1.4rem">{{ icon("plugins", 20) }}<h2 style="margin:0">Plugins</h2><span class="count">{{ plugins | length }}</span><span class="spacer"></span><a class="btn" href="/plugins">Manage plugins and sources</a></div>
 <div class="cards">
 {% for p in plugins %}{% set s = "disabled" if not p.enabled else p.st.status %}
@@ -17,6 +20,7 @@
 {% if p.st.description %}<p class="desc">{{ p.st.description }}</p>{% endif %}
 {% if p.st.error %}<p class="err-text" style="font-size:.8rem">{{ p.st.error }}</p>{% endif %}
 <div class="url sub">{{ p.url }}</div>
+<div class="use"><span><b>{{ p.usage.calls or 0 }}</b> calls today</span>{% if p.usage.errors %}<span><b>{{ p.usage.errors }}</b> failed</span>{% endif %}<span>last used {{ (p.usage.last or 0) | ago }}</span></div>
 <dl><div><dt>Version</dt><dd>{{ p.st.version or "-" }}</dd></div><div><dt>Tools</dt><dd>{{ p.st.tools | length }}</dd></div><div><dt>Origin</dt><dd>{{ "source" if p.from_source else "folder" }}</dd></div></dl>
 <div class="acts">
 {% if p.st.status == "loaded" %}

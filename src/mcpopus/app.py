@@ -26,6 +26,7 @@ from .routing import Routing, make_routing, valid_plugin_name
 from .crypto import SecretError
 from .settings import Settings, SettingsError
 from .sources import Sources
+from .stats import Stats
 from .store import Store
 
 log = logging.getLogger("mcpopus")
@@ -41,6 +42,7 @@ class Host:
     manager: PluginManager
     oauth: OAuthServer
     sources: Sources
+    stats: Stats
 
     @classmethod
     def create(cls, settings: Settings) -> Host:
@@ -52,9 +54,10 @@ class Host:
         audit = AuditLog(settings.audit_path)
         configs = ConfigStore(settings.config_dir, settings.secret_box)
         sources = Sources(settings.config_dir, settings.data_dir, settings.default_source_url)
-        manager = PluginManager(settings.plugins_dir, settings.data_dir, configs, audit, sources.installed_paths)
+        stats = Stats(store)
+        manager = PluginManager(settings.plugins_dir, settings.data_dir, configs, audit, sources.installed_paths, stats=stats)
         oauth = OAuthServer(settings, store, routing, manager.is_loaded)
-        return cls(settings, store, routing, audit, configs, manager, oauth, sources)
+        return cls(settings, store, routing, audit, configs, manager, oauth, sources, stats)
 
 
 def apply_env_credentials(settings: Settings, store: Store) -> None:
@@ -105,6 +108,7 @@ def build_public_app(host: Host) -> Starlette:
         async def housekeeping() -> None:
             while True:
                 host.store.purge_expired()
+                host.stats.prune()
                 await asyncio.sleep(600)
 
         janitor = asyncio.create_task(housekeeping())

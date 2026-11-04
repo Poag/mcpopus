@@ -260,7 +260,11 @@ class Admin:
                  "tools": sum(len(r["st"].tools) for r in rows if r["st"].status == "loaded"),
                  "problems": sum(1 for r in rows if r["st"].status == "error"),
                  "clients": len(clients), "grants": len(grants)}
-        return self.page(request, "admin_home.html", plugins=rows, stats=stats, flash=request.query_params.get("msg", ""))
+        per_plugin = self.h.stats.by_plugin(1)
+        for r in rows:
+            r["usage"] = per_plugin.get(r["st"].name, {})
+        today = self.h.stats.totals(1)
+        return self.page(request, "admin_home.html", plugins=rows, stats=stats, today=today, week=self.h.stats.per_day(None, 14), flash=request.query_params.get("msg", ""))
 
     async def dashboard(self, request: Request) -> Response:
         rows = self._plugin_rows()
@@ -384,7 +388,10 @@ class Admin:
                  for m in (lp.declared if lp else [])]
         return {"name": name, "fields": fields, "policy": pol, "tools": tools, "state": self.h.manager.states.get(name),
                 "enabled": settings.enabled, "error": error, "flash": flash, "has_model": model is not None,
-                "url": self.h.routing.resource_url(name)}
+                "url": self.h.routing.resource_url(name),
+                "usage_day": self.h.stats.totals(1, plugin=name), "usage_week": self.h.stats.totals(7, plugin=name),
+                "usage_tools": self.h.stats.by_tool(name, 7), "usage_counters": self.h.stats.counters(name, 30),
+                "usage_days": self.h.stats.per_day(name, 14)}
 
     async def plugin_page(self, request: Request) -> Response:
         name = request.path_params["name"]
@@ -454,7 +461,7 @@ class Admin:
         for g in grants:
             plugin = self.h.routing.plugin_for_resource(g["resource"]) or g["resource"]
             shown.append({"id": g["id"], "client": g["client_name"], "plugin": plugin, "created": time.strftime("%Y-%m-%d %H:%M", time.gmtime(g["created_at"])), "revoked": g["revoked_at"] is not None})
-        return self.page(request, "admin_access.html", clients=clients, grants=shown, flash=request.query_params.get("msg", ""),
+        return self.page(request, "admin_access.html", usage=self.h.stats.by_client(30), clients=clients, grants=shown, flash=request.query_params.get("msg", ""),
                          plugins=self.h.manager.discover(), default_redirect=self.h.settings.allowed_redirect_uris[0])
 
     async def revoke(self, request: Request) -> Response:

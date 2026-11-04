@@ -1,0 +1,6 @@
+{% macro bars(days) -%}
+{% set mx = (days | map(attribute="calls") | max) or 1 %}
+<div class="bars" role="img" aria-label="Calls per day, last {{ days | length }} days">
+{% for d in days %}<span class="bar" title="{{ d.day }}: {{ d.calls }} calls, {{ d.errors }} errors"><i style="height:{{ (d.calls / mx * 100) | round | int }}%"></i></span>{% endfor %}
+</div>
+{%- endmacro %}

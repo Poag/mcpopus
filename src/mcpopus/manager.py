@@ -34,7 +34,7 @@ from pydantic import BaseModel, ValidationError, field_validator
 from . import __version__
 from .audit import AuditLog, redactor
 from .context import current_client
-from .plugin import MARK, Meta, Plugin, PluginContext, PluginHost, ToolError
+from .plugin import MARK, Meta, NullStatsHook, Plugin, PluginContext, PluginHost, ToolError
 from .pluginconfig import ConfigError, ConfigStore, Policy, secret_fields, validate_config
 from .ratelimit import RateLimiter
 from .routing import valid_plugin_name
@@ -104,7 +104,8 @@ class PluginState:
 
 class PluginManager:
     def __init__(self, plugins_dir: Path, data_dir: Path, configs: ConfigStore, audit: AuditLog,
-                 extra_paths: Callable[[], dict[str, Path]] | None = None) -> None:
+                 extra_paths: Callable[[], dict[str, Path]] | None = None, stats: Any = None) -> None:
+        self.stats = stats  # a Stats, or None (no usage recording)
         sys.dont_write_bytecode = True  # a stale .pyc must never survive a reload
         self.extra_paths = extra_paths or (lambda: {})  # plugins installed from sources: name -> directory
         self.plugins_dir, self.data_dir, self.configs, self.audit = plugins_dir, data_dir, configs, audit
@@ -299,7 +300,7 @@ class PluginManager:
             def audit_hook(**kw: Any) -> None:
                 self.audit.record(plugin=name, **kw)
 
-            ctx = PluginContext(name, cfg, data_dir, logger, http, audit_hook)
+            ctx = PluginContext(name, cfg, data_dir, logger, http, audit_hook, self.stats.hook(name) if self.stats else NullStatsHook())
             host = PluginHost(ctx)
             try:
                 await asyncio.wait_for(setup(host), SETUP_TIMEOUT)
@@ -444,11 +445,12 @@ class PluginManager:
         params = [p.replace(annotation=hints.get(p.name, p.annotation)) for p in sig.parameters.values()]
         is_prompt = meta.kind == "prompt"
         out_ann = inspect.Signature.empty if is_prompt else str
-        audit, cap = self.audit, policy.max_output_bytes
+        audit, cap, stats = self.audit, policy.max_output_bytes, self.stats
 
         async def wrapper(**kwargs: Any) -> Any:
             started = time.perf_counter()
             status, size = "ok", 0
+            size_in = len(json.dumps(kwargs, default=str)) if stats else 0  # only the length is kept
             try:
                 if not policy.allows(meta.name, meta.tier):
                     status = "denied"
@@ -471,6 +473,8 @@ class PluginManager:
                 size = len(text.encode())
                 return text
             finally:
+                if stats:
+                    stats.record_call(plugin_name, current_client.get() or "-", meta.name, status, (time.perf_counter() - started) * 1000, size_in, size)
                 audit.record(plugin=plugin_name, tool=meta.name, args=list(kwargs), status=status,
                              duration_ms=(time.perf_counter() - started) * 1000, size=size, client_id=current_client.get())
 
