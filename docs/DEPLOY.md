@@ -119,6 +119,18 @@ Open **Plugins** in the admin UI. Under **Plugin sources**, press **Fetch** on t
 (tick the trust box). Add other public https repositories with **Add a source**. Installed plugins and their checkouts live in the data
 volume (`/data/sources`), so no plugins folder is needed on the host. The container image includes `git` for it.
 
+## High CPU
+
+The host watches its own CPU. If the process stays above about 85% of one core for 30 seconds, it logs one WARNING from `mcpopus.diag`
+with the stack of every thread, so the log names the function that is spinning (then it stays quiet for ten minutes). To take a snapshot
+by hand at any time:
+
+```bash
+docker kill -s USR1 mcpopus     # prints every thread's stack to the container log (podman kill works the same)
+```
+
+Only code locations are logged, never arguments or secrets. Plugin threads appear as `asyncio_*` or `Thread-*` workers; the event loop is `MainThread`.
+
 ## Backups and updates
 
 Back up `mcpopus-config`, `mcpopus-data` and the key. To update, pull the new image in Dockhand; the host loads plugins on

@@ -26,6 +26,7 @@ from .routing import Routing, make_routing, valid_plugin_name
 from .crypto import SecretError
 from .settings import Settings, SettingsError
 from .sources import Sources
+from . import diag
 from .stats import Stats
 from .store import Store
 
@@ -200,9 +201,11 @@ async def serve(host: Host) -> None:
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop)
     tasks = [asyncio.create_task(srv.serve()) for srv in servers]
+    watchdog = diag.install()
     try:
         await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
     finally:
         stop()
+        watchdog.stop()
         await asyncio.gather(*tasks, return_exceptions=True)
         host.store.close()
