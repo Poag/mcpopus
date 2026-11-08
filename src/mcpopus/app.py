@@ -119,7 +119,7 @@ def build_public_app(host: Host) -> Starlette:
             janitor.cancel()
             await host.manager.stop()
 
-    gateway = Gateway(host.routing, host.oauth, host.manager)
+    gateway = Gateway(host.routing, host.oauth, host.manager, host.stats, host.settings.trust_proxy_headers, host.settings.stats_record_ip)
     routes = [Route("/healthz", healthz), *host.oauth.routes(), Route("/{path:path}", gateway, methods=["GET", "POST", "DELETE", "OPTIONS", "HEAD"])]
     return Starlette(routes=routes, lifespan=lifespan)
 

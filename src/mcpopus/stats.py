@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 import time
 from typing import Any
 
@@ -38,6 +39,8 @@ class StatsHook:
 class Stats:
     def __init__(self, store: Store) -> None:
         self.store = store
+        self._lock = threading.Lock()
+        self._pending: dict[tuple, tuple[int, float]] = {}
 
     def hook(self, plugin: str) -> StatsHook:
         return StatsHook(self, plugin)
@@ -71,10 +74,36 @@ class Stats:
         except Exception:  # noqa: BLE001
             log.warning("could not record counter")
 
+    def seen(self, client_id: str, plugin: str, agent: str, protocol: str, ip: str, country: str) -> None:
+        """One authenticated request from an agent. Counted in memory and written when new or at most once a minute per agent."""
+        try:
+            key = (client_id, plugin, agent, protocol, ip, country)
+            now = time.time()
+            with self._lock:
+                pending, last = self._pending.get(key, (0, 0.0))
+                pending += 1
+                if last and now - last < 60:
+                    self._pending[key] = (pending, last)
+                    return
+                if len(self._pending) >= 2000:  # a flood of distinct agents must not grow memory without limit
+                    self._pending.clear()  # held counts are dropped; every agent is then written again on its next request
+                self._pending[key] = (0, now)
+            self.store._run(
+                "INSERT INTO agents(client_id,plugin,agent,protocol,ip,country,requests,first_ts,last_ts) VALUES(?,?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(client_id,plugin,agent,protocol,ip) DO UPDATE SET requests=requests+excluded.requests, last_ts=excluded.last_ts, country=excluded.country",
+                (client_id, plugin, agent, protocol, ip, country, pending, now, now))
+        except Exception:  # noqa: BLE001
+            log.warning("could not record agent")
+
+    def agents(self, days: int = 30, limit: int = 100) -> list[dict[str, Any]]:
+        rows = self.store._all("SELECT * FROM agents WHERE last_ts>=? ORDER BY last_ts DESC LIMIT ?", (time.time() - days * 86400, limit))
+        return [dict(r) | {"label": agent_label(r["agent"])} for r in rows]
+
     def prune(self) -> None:
         cutoff = _day(time.time() - RETENTION_DAYS * 86400)
         self.store._run("DELETE FROM usage WHERE day<?", (cutoff,))
         self.store._run("DELETE FROM counters WHERE day<?", (cutoff,))
+        self.store._run("DELETE FROM agents WHERE last_ts<?", (time.time() - RETENTION_DAYS * 86400,))
 
     # ------------------------------------------------------------- reading
     @staticmethod
@@ -135,6 +164,27 @@ class Stats:
     def counters(self, plugin: str, days: int = 30) -> dict[str, float]:
         rows = self.store._all("SELECT name, SUM(value) v FROM counters WHERE plugin=? AND day>=? GROUP BY name ORDER BY name", (plugin, self._since(days)))
         return {r["name"]: r["v"] for r in rows}
+
+
+_CTRL = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def clean_header(value: str, limit: int = 160) -> str:
+    """A header value from the network, made safe to store and show: no control characters, bounded length."""
+    return _CTRL.sub(" ", value).strip()[:limit]
+
+
+def agent_label(user_agent: str) -> str:
+    """A short name for a User-Agent string. Display only: the header is supplied by the caller and proves nothing."""
+    ua = user_agent.lower()
+    if not ua:
+        return "unknown"
+    for needle, label in (("claude", "Claude"), ("anthropic", "Anthropic"), ("chatgpt", "ChatGPT"), ("openai", "OpenAI"), ("cursor", "Cursor"),
+                          ("vscode", "VS Code"), ("python-httpx", "Python httpx"), ("httpx", "Python httpx"), ("python-requests", "Python requests"),
+                          ("node", "Node.js"), ("undici", "Node.js"), ("curl", "curl"), ("mozilla", "Browser")):
+        if needle in ua:
+            return label
+    return user_agent.split("/")[0].split(" ")[0][:30] or "unknown"
 
 
 def human_bytes(n: float) -> str:

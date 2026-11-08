@@ -76,6 +76,8 @@ the size of the result, per day, plugin, client and tool. It never stores argume
 today and the last 7 days, a 14-day chart and a table per tool; the Home cards show today's calls and when each plugin was last used; the
 Access page shows calls and last use per client. Days are UTC and 90 days are kept.
 
+The Access page also lists the requesting agents of the last 30 days: the application (OAuth client), a short agent name taken from the `User-Agent` header, the MCP protocol version header, the plugin, the source address (and Cloudflare's country code when the proxy headers are trusted), request counts and first and last seen. These values come from the caller, so they are a display hint and never decide access. Addresses can be switched off with `MCPOPUS_STATS_RECORD_IP=false`; entries are kept for 90 days.
+
 A plugin can add its own counters with `self.ctx.stats.count(name, amount)`, for example bytes written or notes deleted. Names are lower
 case letters, digits and underscores (at most 40 characters), amounts must be zero or more, and each plugin may keep 20 distinct names.
 Counters whose name starts with `bytes` are shown as sizes. Never count anything that identifies content.

@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS usage (
   limited INTEGER NOT NULL DEFAULT 0, ms_total REAL NOT NULL DEFAULT 0, ms_max REAL NOT NULL DEFAULT 0,
   bytes_in INTEGER NOT NULL DEFAULT 0, bytes_out INTEGER NOT NULL DEFAULT 0, last_ts REAL NOT NULL DEFAULT 0,
   PRIMARY KEY (day, plugin, client_id, tool));
+CREATE TABLE IF NOT EXISTS agents (
+  client_id TEXT NOT NULL, plugin TEXT NOT NULL, agent TEXT NOT NULL, protocol TEXT NOT NULL, ip TEXT NOT NULL, country TEXT NOT NULL,
+  requests INTEGER NOT NULL DEFAULT 0, first_ts REAL NOT NULL, last_ts REAL NOT NULL,
+  PRIMARY KEY (client_id, plugin, agent, protocol, ip));
 CREATE TABLE IF NOT EXISTS counters (
   day TEXT NOT NULL, plugin TEXT NOT NULL, name TEXT NOT NULL, value REAL NOT NULL DEFAULT 0,
   PRIMARY KEY (day, plugin, name));

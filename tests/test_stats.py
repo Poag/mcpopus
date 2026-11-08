@@ -74,3 +74,37 @@ async def test_stats_show_in_the_admin_pages(running):
         page = (await a.get("/plugins/st")).text
         assert "Usage" in page and "bytes_written" in page and "2.0 KB" in page
         assert "Calls (30 days)" in (await a.get("/access")).text
+
+
+async def test_requesting_agents_are_recorded_and_shown(running):
+    make_plugin(running.plugins_dir, "st", SRC)
+    running.host.configs.save("st", policy=Policy(rate_limit_per_minute=0))
+    await running.host.manager.load("st")
+    async with mcp(running, "st") as c:
+        await c.call_tool("peek", {})
+    s = running.host.stats
+    rows = s.agents()
+    assert rows and rows[0]["plugin"] == "st" and rows[0]["requests"] >= 1 and rows[0]["ip"] == "127.0.0.1"
+    assert rows[0]["label"] and rows[0]["country"] == ""  # proxy headers are not trusted here, so no country
+    async with running.admin() as (a, _):
+        page = (await a.get("/access")).text
+        assert "Requesting agents" in page and "127.0.0.1" in page
+
+
+def test_agent_helpers():
+    from mcpopus.stats import Stats, agent_label, clean_header
+
+    assert agent_label("Claude-User/1.0 (+https://claude.ai)") == "Claude" and agent_label("") == "unknown"
+    assert agent_label("python-httpx/0.27") == "Python httpx" and agent_label("weird-thing/9") == "weird-thing"
+    assert "\n" not in clean_header("a\r\nb\x00c") and len(clean_header("x" * 999)) == 160
+
+
+def test_agent_writes_are_throttled_and_bounded(running):
+    s = running.host.stats
+    for _ in range(50):
+        s.seen("c1", "p", "ua", "2025-06-18", "10.0.0.1", "")
+    row = running.host.store._one("SELECT requests FROM agents WHERE client_id='c1'")
+    assert row["requests"] == 1  # the other 49 are held in memory until the next minute
+    for i in range(2500):
+        s.seen("c2", "p", f"ua{i}", "", "", "")
+    assert len(s._pending) <= 2001

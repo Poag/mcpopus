@@ -21,6 +21,13 @@
 <form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="delete_client" value="{{ c.client_id }}"><button class="ib danger" title="Delete" aria-label="Delete client {{ c.name }}">{{ icon("trash") }}</button></form></div></td></tr>
 {% else %}<tr><td colspan="8" class="mut">No clients yet.</td></tr>{% endfor %}
 </table>
+<h2>Requesting agents <span class="count">{{ agents | length }}</span></h2>
+<p class="mut">Who has called your plugins in the last 30 days, from request headers. The agent name and protocol are sent by the caller, so treat them as a hint, not proof of identity; access is decided by the token alone.</p>
+<table class="grid"><tr><th>Application</th><th>Agent</th><th>Protocol</th><th>Plugin</th><th>Source</th><th>Requests</th><th>First seen</th><th>Last seen</th></tr>
+{% for a in agents %}<tr><td>{{ client_names.get(a.client_id, a.client_id) }}</td><td title="{{ a.agent }}">{{ a.label }}{% if a.agent %}<div class="sub">{{ a.agent[:60] }}</div>{% endif %}</td><td class="num">{{ a.protocol or "-" }}</td><td class="num">{{ a.plugin }}</td>
+<td class="num">{{ a.ip or "-" }}{% if a.country %} <span class="pill grey">{{ a.country }}</span>{% endif %}</td><td class="num">{{ a.requests }}</td><td class="num">{{ a.first_ts | ago }}</td><td class="num">{{ a.last_ts | ago }}</td></tr>
+{% else %}<tr><td colspan="8" class="mut">No requests recorded yet.</td></tr>{% endfor %}
+</table>
 <h2>Add a pre-registered client</h2>
 <div class="panel"><form method="post" action="/access/client">
 <input type="hidden" name="csrf" value="{{ csrf }}">

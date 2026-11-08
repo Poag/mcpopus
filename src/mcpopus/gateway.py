@@ -21,6 +21,7 @@ from .context import current_client
 from .manager import PluginManager
 from .oauth import OAuthServer
 from .routing import Routing, valid_plugin_name
+from .stats import clean_header
 
 
 async def _respond(send: Send, status: int, body: dict, headers: list[tuple[bytes, bytes]] | None = None) -> None:
@@ -42,8 +43,25 @@ log = logging.getLogger("mcpopus.gateway")
 
 
 class Gateway:
-    def __init__(self, routing: Routing, oauth: OAuthServer, manager: PluginManager) -> None:
+    def __init__(self, routing: Routing, oauth: OAuthServer, manager: PluginManager, stats: Any = None,
+                 trust_proxy: bool = False, record_ip: bool = True) -> None:
         self.routing, self.oauth, self.manager = routing, oauth, manager
+        self.stats, self.trust_proxy, self.record_ip = stats, trust_proxy, record_ip
+
+    def _note_agent(self, scope: Scope, client_id: str, plugin: str) -> None:
+        """Record who is calling, from request headers only. Everything here is supplied by the caller (or by the proxy when
+        MCPOPUS_TRUST_PROXY_HEADERS is on), so it is for display and never used to decide access."""
+        ip = country = ""
+        if self.record_ip:
+            peer = scope.get("client")
+            ip = peer[0] if peer else ""
+            if self.trust_proxy:
+                ip = (_header(scope, b"cf-connecting-ip") or _header(scope, b"x-forwarded-for").split(",")[0]).strip() or ip
+                country = _header(scope, b"cf-ipcountry").strip().upper()
+                if not (len(country) == 2 and country.isalpha()):
+                    country = ""
+        self.stats.seen(client_id, plugin, clean_header(_header(scope, b"user-agent")), clean_header(_header(scope, b"mcp-protocol-version"), 20),
+                        clean_header(ip, 64), country)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -83,6 +101,8 @@ class Gateway:
             await _respond(send, 404, {"error": "not_found"})
             return
 
+        if self.stats is not None:
+            self._note_agent(scope, principal.client_id, route.plugin)
         inner: dict[str, Any] = dict(scope, path="/", raw_path=b"/", root_path="")
         token = current_client.set(principal.client_id)
         loaded.inflight += 1

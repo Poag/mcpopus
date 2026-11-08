@@ -480,12 +480,13 @@ class Admin:
     # ------------------------------------------------------------------ access
     async def access(self, request: Request) -> Response:
         clients = self.h.store.list_clients()
+        names = {c.client_id: c.name for c in clients}
         grants = self.h.store.list_grants()
         shown = []
         for g in grants:
             plugin = self.h.routing.plugin_for_resource(g["resource"]) or g["resource"]
             shown.append({"id": g["id"], "client": g["client_name"], "plugin": plugin, "created": time.strftime("%Y-%m-%d %H:%M", time.gmtime(g["created_at"])), "revoked": g["revoked_at"] is not None})
-        return self.page(request, "admin_access.html", usage=self.h.stats.by_client(30), clients=clients, grants=shown, flash=request.query_params.get("msg", ""),
+        return self.page(request, "admin_access.html", usage=self.h.stats.by_client(30), agents=self.h.stats.agents(30), client_names=names, clients=clients, grants=shown, flash=request.query_params.get("msg", ""),
                          plugins=self.h.manager.discover(), default_redirect=self.h.settings.allowed_redirect_uris[0])
 
     async def revoke(self, request: Request) -> Response:
