@@ -379,7 +379,10 @@ def test_session_settings_are_validated(monkeypatch, tmp_path):
 
     from mcpopus.settings import Settings, SettingsError
 
-    base = {"MCPOPUS_PUBLIC_URL": "https://mcp.example.com", "MCPOPUS_SECRET_KEY": "x" * 10}
+    from mcpopus.crypto import generate_key
+
+    base = {"MCPOPUS_PUBLIC_URL": "https://mcp.example.com", "MCPOPUS_SECRET_KEY": generate_key()}
     for bad in ("0", "abc", "100000"):
         with pytest.raises(SettingsError, match="IDLE_HOURS"):
             Settings.from_env({**base, "MCPOPUS_ADMIN_SESSION_IDLE_HOURS": bad})
+    assert Settings.from_env(base).admin_session_idle_hours == 168.0
