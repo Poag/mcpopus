@@ -23,6 +23,8 @@ services:
       # Hostnames you use to open the admin UI, comma separated (IP addresses and localhost always work).
       # Example: pi4.example.ts.net. Without the name you browse by, the admin page says "Misdirected request".
       MCPOPUS_ADMIN_ALLOWED_HOSTS: ${MCPOPUS_ADMIN_ALLOWED_HOSTS:-}
+      MCPOPUS_ADMIN_SESSION_IDLE_HOURS: ${MCPOPUS_ADMIN_SESSION_IDLE_HOURS:-168}
+      MCPOPUS_ADMIN_SESSION_MAX_DAYS: ${MCPOPUS_ADMIN_SESSION_MAX_DAYS:-30}
       # Log detail: INFO (default), WARNING, ERROR or DEBUG. Per-request access lines are off unless ACCESS_LOG is true.
       MCPOPUS_LOG_LEVEL: ${MCPOPUS_LOG_LEVEL:-INFO}
       MCPOPUS_ACCESS_LOG: ${MCPOPUS_ACCESS_LOG:-false}

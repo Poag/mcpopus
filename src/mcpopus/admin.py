@@ -30,7 +30,7 @@ from .web import BodyTooLarge, client_ip, html_page, read_form_multi
 log = logging.getLogger("mcpopus.admin")
 REALM = "admin"
 COOKIE = "mcpopus_admin"
-SESSION_SECONDS = 8 * 3600
+ENROL_SECONDS = 3600  # the set-up-only session after a first, password-only sign-in
 
 
 def host_ok(host_header: str, extra: tuple[str, ...]) -> bool:
@@ -96,6 +96,7 @@ class Admin:
             request.state.session = session
             if session["enrol_only"] and not allow_enrol:
                 return RedirectResponse("/enrol", status_code=303)
+            renewed = self._renew(session)
             if request.method == "POST":
                 try:
                     form = dict(await read_form_multi(request))
@@ -104,9 +105,31 @@ class Admin:
                 request.state.form = form
                 if not ct_equal(session["csrf"], form.get("csrf", "")):
                     return html_page("error.html", 403, title="Request refused", message="Missing or wrong form token. Reload the page and try again.")
-            return await fn(request)
+            resp = await fn(request)
+            if renewed is not None and not session["enrol_only"]:
+                self._set_cookie(resp, request.cookies[COOKIE], renewed - time.time())
+            return resp
 
         return handler
+
+    def _lifetimes(self) -> tuple[float, float]:
+        s = self.h.settings
+        return s.admin_session_idle_hours * 3600, s.admin_session_max_days * 86400
+
+    def _renew(self, session) -> float | None:
+        """Sliding expiry: use keeps a session alive, up to the absolute maximum. Written at most about once an hour."""
+        if session["enrol_only"]:
+            return None
+        idle, longest = self._lifetimes()
+        now = time.time()
+        new = min(now + idle, session["created_at"] + longest)
+        if new - session["expires_at"] < 3600:
+            return None
+        self.h.store.extend_admin_session(session["id_hash"], new)
+        return new
+
+    def _set_cookie(self, resp: Response, sid: str, max_age: float) -> None:
+        resp.set_cookie(COOKIE, sid, max_age=max(60, int(max_age)), httponly=True, samesite="strict", secure=self.secure_cookie, path="/")
 
     def _host_check(self, request: Request) -> Response | None:
         if not host_ok(request.headers.get("host", ""), self.extra_hosts):
@@ -163,9 +186,10 @@ class Admin:
             log.warning("failed admin login from %s: %s", ip, reason)
             return html_page("admin_login.html", 401, error="Those details were not accepted.")
         sid, csrf = new_token("as", 32), new_token("cs", 24)
-        self.h.store.add_admin_session(hash_token(sid), csrf, time.time() + SESSION_SECONDS, enrol_only=enrol)
+        life = ENROL_SECONDS if enrol else self._lifetimes()[0]
+        self.h.store.add_admin_session(hash_token(sid), csrf, time.time() + life, enrol_only=enrol)
         resp = RedirectResponse("/enrol" if enrol else "/", status_code=303)
-        resp.set_cookie(COOKIE, sid, max_age=SESSION_SECONDS, httponly=True, samesite="strict", secure=self.secure_cookie, path="/")
+        self._set_cookie(resp, sid, life)
         log.info("admin login from %s", ip)
         return resp
 

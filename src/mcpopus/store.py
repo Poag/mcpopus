@@ -283,5 +283,8 @@ class Store:
     def get_admin_session(self, id_hash: str) -> sqlite3.Row | None:
         return self._one("SELECT * FROM admin_sessions WHERE id_hash=? AND expires_at>?", (id_hash, time.time()))
 
+    def extend_admin_session(self, id_hash: str, expires_at: float) -> None:
+        self._run("UPDATE admin_sessions SET expires_at=? WHERE id_hash=?", (expires_at, id_hash))
+
     def delete_admin_session(self, id_hash: str) -> None:
         self._run("DELETE FROM admin_sessions WHERE id_hash=?", (id_hash,))

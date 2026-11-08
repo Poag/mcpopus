@@ -349,3 +349,37 @@ async def test_home_cards_and_page_titles(running):
         assert "<title>MCP Octopus - Access</title>" in (await c.get("/access")).text
     async with running.admin() as (c, _):
         pass
+
+
+async def test_admin_session_slides_but_has_an_absolute_limit(running):
+    import time
+
+    store = running.host.store
+    idle, longest = 168 * 3600, 30 * 86400
+    async with running.admin() as (c, _):
+        sid = c.cookies.get("mcpopus_admin")
+        from mcpopus.crypto import hash_token
+
+        h = hash_token(sid)
+        row = store.get_admin_session(h)
+        assert abs(row["expires_at"] - row["created_at"] - idle) < 5  # a week, not eight hours
+        store._run("UPDATE admin_sessions SET expires_at=? WHERE id_hash=?", (time.time() + 600, h))  # nearly expired
+        resp = await c.get("/")
+        assert resp.status_code == 200 and "mcpopus_admin" in resp.headers.get("set-cookie", "")
+        assert store.get_admin_session(h)["expires_at"] > time.time() + idle - 60  # use renewed it
+        store._run("UPDATE admin_sessions SET created_at=?, expires_at=? WHERE id_hash=?", (time.time() - longest + 7200, time.time() + 600, h))
+        await c.get("/")
+        assert store.get_admin_session(h)["expires_at"] <= time.time() + 7200 + 5  # never past created_at + 30 days
+        store._run("UPDATE admin_sessions SET expires_at=? WHERE id_hash=?", (time.time() - 1, h))
+        assert (await c.get("/")).status_code == 303  # expired sessions are refused
+
+
+def test_session_settings_are_validated(monkeypatch, tmp_path):
+    import pytest
+
+    from mcpopus.settings import Settings, SettingsError
+
+    base = {"MCPOPUS_PUBLIC_URL": "https://mcp.example.com", "MCPOPUS_SECRET_KEY": "x" * 10}
+    for bad in ("0", "abc", "100000"):
+        with pytest.raises(SettingsError, match="IDLE_HOURS"):
+            Settings.from_env({**base, "MCPOPUS_ADMIN_SESSION_IDLE_HOURS": bad})

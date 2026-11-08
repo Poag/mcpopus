@@ -21,6 +21,18 @@ class SettingsError(ValueError):
     pass
 
 
+def _positive(raw: str | None, default: float, low: float, high: float, name: str) -> float:
+    if raw is None or not raw.strip():
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        raise SettingsError(f"{name} must be a number") from None
+    if not low <= value <= high:
+        raise SettingsError(f"{name} must be between {low:g} and {high:g}")
+    return value
+
+
 def parse_bool(value: str | None, name: str, default: bool = False) -> bool:
     if value is None or value.strip() == "":
         return default
@@ -52,6 +64,8 @@ class Settings:
     max_dcr_clients: int = 200
     admin_allowed_hosts: tuple[str, ...] = ()
     admin_secure_cookie: bool = False
+    admin_session_idle_hours: float = 168.0  # a session ends after this long without use (7 days)
+    admin_session_max_days: float = 30.0  # and never lasts longer than this in total
     log_level: str = "INFO"
     access_log: bool = False
     default_source_url: str = "https://github.com/Poag/mcpopus-plugins"
@@ -112,6 +126,8 @@ class Settings:
             access_token_ttl=int(get("ACCESS_TOKEN_TTL", "900") or 900),
             admin_allowed_hosts=tuple(h.strip().lower() for h in (get("ADMIN_ALLOWED_HOSTS", "") or "").split(",") if h.strip()),
             admin_secure_cookie=parse_bool(get("ADMIN_SECURE_COOKIE"), "MCPOPUS_ADMIN_SECURE_COOKIE"),
+            admin_session_idle_hours=_positive(get("ADMIN_SESSION_IDLE_HOURS"), 168.0, 1.0, 24 * 90, "MCPOPUS_ADMIN_SESSION_IDLE_HOURS"),
+            admin_session_max_days=_positive(get("ADMIN_SESSION_MAX_DAYS"), 30.0, 1.0, 365.0, "MCPOPUS_ADMIN_SESSION_MAX_DAYS"),
             log_level=_log_level(get("LOG_LEVEL")),
             access_log=parse_bool(get("ACCESS_LOG"), "MCPOPUS_ACCESS_LOG"),
             default_source_url=(get("DEFAULT_SOURCE_URL", "https://github.com/Poag/mcpopus-plugins") or "").strip(),

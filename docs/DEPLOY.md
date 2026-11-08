@@ -149,6 +149,8 @@ All are environment variables. Required: `MCPOPUS_PUBLIC_URL`, one of `MCPOPUS_S
 | `MCPOPUS_DEFAULT_SOURCE_URL` | `https://github.com/Poag/mcpopus-plugins` | the plugin source listed first on a new install (empty for none) |
 | `MCPOPUS_ADMIN_BIND` / `_PORT` | `127.0.0.1` / `8081` (`0.0.0.0` in the image) | |
 | `MCPOPUS_ADMIN_ALLOWED_HOSTS`, `MCPOPUS_ADMIN_SECURE_COOKIE` | empty, `false` | see above |
+| `MCPOPUS_ADMIN_SESSION_IDLE_HOURS` | `168` | an admin session ends after this many hours without use (1 to 2160). Using the UI keeps it alive |
+| `MCPOPUS_ADMIN_SESSION_MAX_DAYS` | `30` | the most a session can last in total, however often it is used (1 to 365) |
 | `MCPOPUS_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR`. At `INFO` the log holds start-up, plugin load and unload, sign-ins, source changes and anything that failed; `DEBUG` adds OAuth request details and library noise |
 | `MCPOPUS_ACCESS_LOG` | `false` | `true` prints one line per HTTP request (off by default; tool calls are in the audit log) |
 | `MCPOPUS_TRUST_PROXY_HEADERS` | `false` | `true` or `false`; use `CF-Connecting-IP` or `X-Forwarded-For` for rate limits |
