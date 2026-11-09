@@ -131,8 +131,14 @@ def cmd_smoke(args: argparse.Namespace) -> int:
 
     for m in pkgutil.walk_packages(mcpopus.__path__, "mcpopus."):
         importlib.import_module(m.name)
-    for dep in ("mcp", "starlette", "uvicorn", "pydantic", "cryptography", "argon2", "jinja2", "multipart", "httpx2", "segno"):
+    for dep in ("mcp", "starlette", "uvicorn", "pydantic", "cryptography", "argon2", "jinja2", "multipart", "httpx2", "segno", "wsproto", "h11"):
         importlib.import_module(dep)
+    import httpx2
+
+    assert hasattr(httpx2.AsyncClient, "websocket"), "httpx2 has no WebSocket client"
+    from wsproto import ConnectionType, WSConnection
+
+    WSConnection(ConnectionType.CLIENT)  # plugins open WebSockets through httpx2, which needs wsproto at run time
     from .crypto import SecretBox, generate_key
     from .web import env as templates
 
