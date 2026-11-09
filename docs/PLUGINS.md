@@ -69,6 +69,18 @@ What happens:
 | `audit` | a callable that adds a line to the audit log (rarely needed: tool calls are audited for you) |
 | `stats` | `ctx.stats.count("bytes_written", n)` adds to a named usage counter shown on the plugin's page (see Usage statistics). Absent on hosts older than 0.2.0: use `getattr(self.ctx, "stats", None)` |
 
+## Arguments a tool does not declare
+
+From host 0.2.0 a call that names an argument the tool does not declare is refused with an error that lists the names it accepts
+(`Unknown argument 'folder' for tool list_messages. It accepts: mailbox, limit. ... Nothing was run.`), and the tool does not run. Before,
+the extra argument was silently dropped and the tool ran with its default, which hid stale tool lists in clients after a plugin renamed a
+parameter. The names from the caller are shown with only letters, digits, `_`, `.` and `-` (others become `?`), at most 40 characters and
+three names, and the values are never echoed. The same applies to prompts. A parameter you rename or remove will therefore make old clients
+fail loudly until they reload the tool list; keep old names working (accept both, one as an optional alias) if that matters.
+
+Required arguments left out, and values of the wrong type, are still reported by the MCP SDK's own validation, whose message includes the
+rejected value (see docs/SECURITY.md).
+
 ## Usage statistics
 
 The host records every tool call for you: calls, failures, refused calls (policy or rate limit), time, the size of the arguments and

@@ -131,6 +131,13 @@ docker kill -s USR1 mcpopus     # prints every thread's stack to the container l
 
 Only code locations are logged, never arguments or secrets. Plugin threads appear as `asyncio_*` or `Thread-*` workers; the event loop is `MainThread`.
 
+## After updating to 0.2.0
+
+- The image has a new dependency (`wsproto`, for WebSockets used by some plugins): pull the new image and recreate the container.
+- Tools now refuse arguments they do not declare. A client with an old tool list may get "Unknown argument ... reload it and try again".
+  Disconnect and reconnect the connector in claude.ai (or refresh its tools) so it reads the current list.
+- The plugin page shows the running version and when it was applied, and a rejected settings change or failed reload says so, with a time.
+
 ## Backups and updates
 
 Back up `mcpopus-config`, `mcpopus-data` and the key. To update, pull the new image in Dockhand; the host loads plugins on

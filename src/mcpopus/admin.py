@@ -438,7 +438,9 @@ class Admin:
                 merged.pop(c, None)
             validate_config(model, values, merged)
         except ConfigError as e:
-            return self.page(request, "admin_plugin.html", 400, **self._plugin_ctx(name, values=values, error=str(e)))
+            log.warning("settings for %s rejected: %s", name, e)
+            return self.page(request, "admin_plugin.html", 400, **self._plugin_ctx(
+                name, values=values, error=f"Not saved: {e}. The plugin is still running with its previous settings."))
         self.h.configs.save(name, values=values, new_secrets=new_secrets, clear_secrets=clear)
         try:
             await (self.h.manager.reload(name) if self.h.manager.is_loaded(name) else self.h.manager.load(name))

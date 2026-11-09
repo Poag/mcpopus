@@ -16,6 +16,7 @@ import importlib.util
 import inspect
 import json
 import logging
+import re
 import sys
 import time
 import tomllib
@@ -28,6 +29,9 @@ from typing import Any
 
 import httpx2
 from mcp.server import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError as SdkToolError
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ValidationError, field_validator
 
@@ -98,8 +102,53 @@ class PluginState:
     version: str | None = None
     description: str = ""
     error: str | None = None
-    loaded_at: float | None = None
+    loaded_at: float | None = None  # when the running version was applied
+    error_at: float | None = None  # when the last failed load or reload happened
     tools: list[str] = field(default_factory=list)
+
+
+_SAFE_NAME = re.compile(r"[^A-Za-z0-9_.-]")
+
+
+def _shown(name: object) -> str:
+    """An argument name from the caller, made safe to repeat back: a short run of plain characters, nothing else."""
+    return _SAFE_NAME.sub("?", str(name))[:40]
+
+
+def unknown_argument_message(kind: str, name: str, unknown: list[str], accepted: list[str]) -> str:
+    names = ", ".join(f"'{_shown(u)}'" for u in unknown[:3]) + (f" and {len(unknown) - 3} more" if len(unknown) > 3 else "")
+    plural = "arguments" if len(unknown) > 1 else "argument"
+    ok = ", ".join(accepted) if accepted else "no arguments"
+    return (f"Unknown {plural} {names} for {kind} {name}. It accepts: {ok}. "
+            f"Your list of {kind}s may be out of date: reload it and try again. Nothing was run.")
+
+
+class PluginServer(MCPServer):
+    """MCPServer that refuses arguments a tool or prompt does not declare, instead of silently dropping them.
+    A client with a stale tool list (a parameter was renamed) would otherwise run the tool with the default."""
+
+    def _unknown(self, declared: list[str] | None, arguments: dict[str, Any] | None) -> list[str]:
+        if declared is None or not isinstance(arguments, dict):
+            return []
+        return [k for k in arguments if k not in declared]
+
+    async def call_tool(self, name: str, arguments: dict[str, Any], context: Any = None) -> Any:
+        tool = self._tool_manager.get_tool(name)
+        if tool is not None:
+            declared = sorted((tool.parameters or {}).get("properties", {}))
+            bad = self._unknown(declared, arguments)
+            if bad:
+                raise SdkToolError(unknown_argument_message("tool", name, bad, declared))
+        return await super().call_tool(name, arguments, context)
+
+    async def get_prompt(self, name: str, arguments: dict[str, Any] | None = None, context: Any = None) -> Any:
+        prompt = self._prompt_manager.get_prompt(name)
+        if prompt is not None:
+            declared = sorted(a.name for a in (prompt.arguments or []))
+            bad = self._unknown(declared, arguments)
+            if bad:
+                raise MCPError(INVALID_PARAMS, unknown_argument_message("prompt", name, bad, declared))
+        return await super().get_prompt(name, arguments, context)
 
 
 class PluginManager:
@@ -248,6 +297,8 @@ class PluginManager:
                 st.status, st.error = "error", str(e)
             else:
                 st.error = f"reload failed, previous version still running: {e}"
+            st.error_at = time.time()
+            log.warning("plugin %s: %s failed%s: %s", name, "reload" if replacing else "load", ", previous version still running" if replacing else "", e)
             raise
         except Exception as e:  # defensive: never let a plugin bug escape the manager
             log.exception("unexpected error loading %s", name)
@@ -256,11 +307,12 @@ class PluginManager:
                 st.status, st.error = "error", str(err)
             else:
                 st.error = f"reload failed, previous version still running: {err}"
+            st.error_at = time.time()
             raise err from None
         self.loaded[name] = new  # atomic swap: the dispatcher now sees the new version
         if replacing is not None:
             await self._retire(replacing)
-        st.status, st.error, st.version = "loaded", None, new.manifest.version
+        st.status, st.error, st.error_at, st.version = "loaded", None, None, new.manifest.version
         st.description, st.loaded_at, st.tools = new.manifest.description, new.loaded_at, list(new.tools)
         log.info("plugin %s %s loaded (generation %d, %d tools)", name, new.manifest.version, new.generation, len(new.tools))
         return st
@@ -408,7 +460,7 @@ class PluginManager:
 
     # ----------------------------------------------------------- MCP surface
     def _build_server(self, name: str, manifest: Manifest, plugin: Plugin, policy: Policy) -> tuple[MCPServer, list[str], list[Meta]]:
-        server = MCPServer(name=name, instructions=getattr(plugin, "instructions", None) or manifest.description, version=manifest.version)
+        server = PluginServer(name=name, instructions=getattr(plugin, "instructions", None) or manifest.description, version=manifest.version)
         limiter = RateLimiter(policy.rate_limit_per_minute, 60) if policy.rate_limit_per_minute > 0 else None
         tools: list[str] = []
         declared: list[Meta] = []

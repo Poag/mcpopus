@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcpopus"
-version = "0.1.0"
+version = "0.2.0"
 description = "Self-hosted MCP host: several MCP endpoints from one process, OAuth, runtime-loadable plugins."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -386,3 +386,23 @@ def test_session_settings_are_validated(monkeypatch, tmp_path):
         with pytest.raises(SettingsError, match="IDLE_HOURS"):
             Settings.from_env({**base, "MCPOPUS_ADMIN_SESSION_IDLE_HOURS": bad})
     assert Settings.from_env(base).admin_session_idle_hours == 168.0
+
+
+async def test_rejected_settings_and_failed_reloads_are_visible(running):
+    make_plugin(running.plugins_dir, "alpha", IMAPISH.replace("password: SecretStr", "password: SecretStr = SecretStr('pw-default')").replace("host: str = Field(description=\"Server name\")", "host: str = 'h'"))
+    await running.host.manager.load("alpha")
+    async with running.admin() as (c, csrf):
+        page = (await c.get("/plugins/alpha")).text
+        assert "Running version" in page and "applied" in page and "UTC" in page
+        bad = await c.post("/plugins/alpha/config", data={"csrf": csrf, "f_port": "not-a-number", "f_host": "h"})
+        assert bad.status_code == 400 and "Not saved" in bad.text and "previous settings" in bad.text and "not-a-number" not in bad.text.split("Not saved")[1].split("</p>")[0]
+        assert running.host.manager.is_loaded("alpha")  # the old version keeps running
+        # a failed reload leaves the old version serving and says so, with a time
+        (running.plugins_dir / "alpha" / "__init__.py").write_text("raise RuntimeError('boom')\n")
+        try:
+            await running.host.manager.reload("alpha")
+        except Exception:  # noqa: BLE001
+            pass
+        page = (await c.get("/plugins/alpha")).text
+        assert "previous version still running" in page and "Running version" in page
+        assert running.host.manager.states["alpha"].error_at is not None

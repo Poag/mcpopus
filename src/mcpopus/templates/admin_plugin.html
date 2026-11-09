@@ -4,7 +4,8 @@
 {% from "_icons.html" import icon %}
 {% from "_stats.html" import bars %}
 <div class="pagehead">{{ icon("plugins", 22) }}<h1>{{ name }}</h1>{% set s = state.status if state else "unknown" %}<span class="pill {{ {'loaded': 'ok', 'error': 'bad', 'disabled': 'warn'}.get(s, 'grey') }}">{{ s }}</span><span class="sub">{{ url }}</span></div>
-{% if state and state.error %}<p class="err-text">{{ state.error }}</p>{% endif %}
+{% if state and state.status == "loaded" %}<p class="mut">Running version <strong>{{ state.version }}</strong>, applied {{ state.loaded_at | utc }} ({{ state.loaded_at | ago }}).</p>{% endif %}
+{% if state and state.error %}<p class="err-text">{{ state.error }}{% if state.error_at %} <span class="mut">({{ state.error_at | utc }})</span>{% endif %}</p>{% endif %}
 {% if error %}<p class="err" role="alert">{{ error }}</p>{% endif %}
 
 <h2>Settings</h2>

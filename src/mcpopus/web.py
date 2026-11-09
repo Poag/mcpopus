@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import time
+
 from jinja2 import Environment, PackageLoader, select_autoescape
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
@@ -17,6 +19,7 @@ from .stats import ago, human_bytes  # noqa: E402
 
 env.filters["bytes"] = human_bytes
 env.filters["ago"] = ago
+env.filters["utc"] = lambda ts: time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(ts)) if ts else "never"
 
 SECURITY_HEADERS = {
     "Cache-Control": "no-store",

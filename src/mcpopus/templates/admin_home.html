@@ -20,7 +20,7 @@
 {% if p.st.description %}<p class="desc">{{ p.st.description }}</p>{% endif %}
 {% if p.st.error %}<p class="err-text" style="font-size:.8rem">{{ p.st.error }}</p>{% endif %}
 <div class="url sub">{{ p.url }}</div>
-<div class="use"><span><b>{{ p.usage.calls or 0 }}</b> calls today</span>{% if p.usage.errors %}<span><b>{{ p.usage.errors }}</b> failed</span>{% endif %}<span>last used {{ (p.usage.last or 0) | ago }}</span></div>
+<div class="use"><span title="{{ (p.st.loaded_at or 0) | utc }}">applied {{ (p.st.loaded_at or 0) | ago }}</span><span><b>{{ p.usage.calls or 0 }}</b> calls today</span>{% if p.usage.errors %}<span><b>{{ p.usage.errors }}</b> failed</span>{% endif %}<span>last used {{ (p.usage.last or 0) | ago }}</span></div>
 <dl><div><dt>Version</dt><dd>{{ p.st.version or "-" }}</dd></div><div><dt>Tools</dt><dd>{{ p.st.tools | length }}</dd></div><div><dt>Origin</dt><dd>{{ "source" if p.from_source else "folder" }}</dd></div></dl>
 <div class="acts">
 {% if p.st.status == "loaded" %}
