@@ -194,7 +194,9 @@ Rules, enforced by the host:
 - Uninstalling the plugin deletes its packages. Failures are shown on the page with pip's own error line.
 
 **2. Add it to the host image.** For a library many plugins share, or one without a wheel, put it in the host itself. A plugin may import
-anything in `requirements.lock` (notably `httpx2`, `wsproto`, `pydantic`, `cryptography`, `starlette`, `mcp`). To add a library:
+anything in `requirements.lock`, which is only what the host itself needs: `mcp`, `starlette`, `uvicorn`, `pydantic`, `cryptography`,
+`argon2-cffi`, `jinja2`, `httpx2`, `segno` and `pip`, plus their own dependencies. Everything else, for example `wsproto` for WebSockets through
+`httpx2`, goes in the plugin's `requirements`. To add a library to the host itself:
 
 1. Add it to `dependencies` in `pyproject.toml` with an exact version, and use it from the plugin.
 2. Regenerate the lock: `uv pip compile pyproject.toml --universal --generate-hashes -o requirements.lock`.

@@ -135,11 +135,13 @@ Only code locations are logged, never arguments or secrets. Plugin threads appea
 
 - Plugins can now list Python packages in `plugin.toml`; the host installs them into `/data/packages` when you add or update the plugin. The
   host needs outbound access to `pypi.org` and `files.pythonhosted.org` for that (or set `MCPOPUS_PIP_INDEX_URL` to a mirror). The install form
-  lists the packages before you tick the trust box. The new image also carries `pip` for this.
+  lists the packages before you tick the trust box. The new image carries `pip` for this and no longer carries packages only plugins use
+  (`wsproto`), so a plugin that needs one must list it in its `requirements`: until the plugins are updated, the Home Assistant registry reads and
+  the SwarmUI live progress that need WebSockets will not work.
 
 ## After updating to 0.2.0
 
-- The image has a new dependency (`wsproto`, for WebSockets used by some plugins): pull the new image and recreate the container.
+- 0.2.0 added `wsproto` to the image for WebSockets; 0.3.0 removes it again. A plugin that needs it lists `wsproto==1.3.2` in its own `requirements` (see 0.3.0 above).
 - Tools now refuse arguments they do not declare. A client with an old tool list may get "Unknown argument ... reload it and try again".
   Disconnect and reconnect the connector in claude.ai (or refresh its tools) so it reads the current list.
 - The plugin page shows the running version and when it was applied, and a rejected settings change or failed reload says so, with a time.
