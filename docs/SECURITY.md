@@ -83,3 +83,14 @@ Unknown argument names are refused by the host with a sanitised message (names o
 required arguments the MCP SDK's validation error is returned to the same caller, and it quotes the offending input value
 (for example `input_value='...'`). The caller supplied that value, so nothing new is disclosed to it, but a client that passes tool errors
 on to a third party would also pass that value on. Plugins should not rely on argument validation to hide values.
+
+## Packages requested by plugins
+
+A plugin may list exact-pinned Python packages in its manifest (docs/PLUGINS.md). Measures: the owner's explicit action is required (the trust
+box when installing from a source or applying an update, or the button on the plugin's page), never an automatic install on load; wheels
+only, so no install-time code runs; exact pins with optional hashes; pip with `--isolated`, a time limit and an environment stripped of
+`MCPOPUS_*`; private per-plugin directories; host-provided packages cannot be replaced or shadowed; installing can be switched off with
+`MCPOPUS_ALLOW_PACKAGE_INSTALL=false`. Accepted risks: the packages' code runs inside the host process with the plugin's trust, so a
+compromised package (or a compromised PyPI account for one) is as bad as a compromised plugin; an unhashed pin only fixes the version, not the
+bytes; transitive dependencies are not pinned unless the plugin lists them; pip needs outbound access to the package index. Read the list
+before you tick the trust box, and prefer hashed pins for anything sensitive.

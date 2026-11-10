@@ -27,10 +27,11 @@ import shutil
 import threading
 import time
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .packages import parse_requirements
 from .routing import valid_plugin_name
 
 log = logging.getLogger("mcpopus.sources")
@@ -54,6 +55,7 @@ class PluginInfo:
     description: str
     installed: bool
     problem: str = ""
+    requirements: list[str] = field(default_factory=list)
 
 
 class Sources:
@@ -268,7 +270,12 @@ class Sources:
             try:
                 m = tomllib.loads((p / "plugin.toml").read_text())
                 problem = "" if m.get("name") == p.name and valid_plugin_name(p.name) and (p / "__init__.py").is_file() else "not a valid plugin directory"
-                out.append(PluginInfo(p.name, str(m.get("version", "?"))[:20], str(m.get("description", ""))[:300], installed.get(p.name, {}).get("source") == sid, problem))
+                reqs: list[str] = []
+                try:
+                    reqs = parse_requirements(m.get("requirements"))
+                except ValueError as e:
+                    problem = problem or f"invalid requirements: {e}"
+                out.append(PluginInfo(p.name, str(m.get("version", "?"))[:20], str(m.get("description", ""))[:300], installed.get(p.name, {}).get("source") == sid, problem, reqs))
             except (OSError, tomllib.TOMLDecodeError):
                 out.append(PluginInfo(p.name[:40], "?", "", False, "plugin.toml is missing or unreadable"))
         return out

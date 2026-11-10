@@ -27,6 +27,7 @@ from .crypto import SecretError
 from .settings import Settings, SettingsError
 from .sources import Sources
 from . import diag
+from .packages import Packages
 from .stats import Stats
 from .store import Store
 
@@ -56,7 +57,8 @@ class Host:
         configs = ConfigStore(settings.config_dir, settings.secret_box)
         sources = Sources(settings.config_dir, settings.data_dir, settings.default_source_url)
         stats = Stats(store)
-        manager = PluginManager(settings.plugins_dir, settings.data_dir, configs, audit, sources.installed_paths, stats=stats)
+        packages = Packages(settings.data_dir, settings.allow_package_install, settings.pip_index_url, settings.pip_find_links)
+        manager = PluginManager(settings.plugins_dir, settings.data_dir, configs, audit, sources.installed_paths, stats=stats, packages=packages)
         oauth = OAuthServer(settings, store, routing, manager.is_loaded)
         return cls(settings, store, routing, audit, configs, manager, oauth, sources, stats)
 

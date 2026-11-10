@@ -131,7 +131,7 @@ def cmd_smoke(args: argparse.Namespace) -> int:
 
     for m in pkgutil.walk_packages(mcpopus.__path__, "mcpopus."):
         importlib.import_module(m.name)
-    for dep in ("mcp", "starlette", "uvicorn", "pydantic", "cryptography", "argon2", "jinja2", "multipart", "httpx2", "segno", "wsproto", "h11"):
+    for dep in ("mcp", "starlette", "uvicorn", "pydantic", "cryptography", "argon2", "jinja2", "multipart", "httpx2", "segno", "wsproto", "h11", "pip"):
         importlib.import_module(dep)
     import httpx2
 

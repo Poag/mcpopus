@@ -38,6 +38,7 @@ from pydantic import BaseModel, ValidationError, field_validator
 from . import __version__
 from .audit import AuditLog, redactor
 from .context import current_client
+from .packages import PackageError, Packages, parse_requirements
 from .plugin import MARK, Meta, NullStatsHook, Plugin, PluginContext, PluginHost, ToolError
 from .pluginconfig import ConfigError, ConfigStore, Policy, secret_fields, validate_config
 from .ratelimit import RateLimiter
@@ -66,6 +67,12 @@ class Manifest(BaseModel):
     version: str
     description: str
     min_host_version: str = "0.1.0"
+    requirements: list[str] = []  # exact pins, installed by the host when the plugin is added (see packages.py)
+
+    @field_validator("requirements", mode="before")
+    @classmethod
+    def _requirements(cls, v: Any) -> list[str]:
+        return parse_requirements(v)
 
     @field_validator("version", "min_host_version")
     @classmethod
@@ -153,7 +160,8 @@ class PluginServer(MCPServer):
 
 class PluginManager:
     def __init__(self, plugins_dir: Path, data_dir: Path, configs: ConfigStore, audit: AuditLog,
-                 extra_paths: Callable[[], dict[str, Path]] | None = None, stats: Any = None) -> None:
+                 extra_paths: Callable[[], dict[str, Path]] | None = None, stats: Any = None, packages: Packages | None = None) -> None:
+        self.packages = packages
         self.stats = stats  # a Stats, or None (no usage recording)
         sys.dont_write_bytecode = True  # a stale .pyc must never survive a reload
         self.extra_paths = extra_paths or (lambda: {})  # plugins installed from sources: name -> directory
@@ -238,6 +246,25 @@ class PluginManager:
             st.status, st.error, st.loaded_at, st.tools = "unloaded", None, None, []
             return st
 
+    def requirements(self, name: str) -> list[str]:
+        """The packages a plugin asks for, or [] (also when its manifest is unreadable; loading reports that)."""
+        try:
+            return self._read_manifest(name).requirements
+        except PluginLoadError:
+            return []
+
+    async def install_packages(self, name: str) -> dict[str, str]:
+        """Install the packages a plugin asks for (owner action). Raises PluginLoadError with a message safe to show."""
+        reqs = self._read_manifest(name).requirements
+        if not reqs:
+            return {}
+        if self.packages is None:
+            raise PluginLoadError("this host cannot install packages")
+        try:
+            return await self.packages.install(name, reqs)
+        except PackageError as e:
+            raise PluginLoadError(str(e)) from None
+
     async def reload(self, name: str) -> PluginState:
         """Load a new generation; on any failure the old one keeps serving."""
         async with self._lock(name):
@@ -253,7 +280,12 @@ class PluginManager:
             raise PluginLoadError("plugin directory not found")
         try:
             m = Manifest.model_validate(tomllib.loads((base / "plugin.toml").read_text()))
-        except (OSError, tomllib.TOMLDecodeError, ValidationError) as e:
+        except ValidationError as e:
+            bad = next((err for err in e.errors() if err["loc"][:1] == ("requirements",)), None)
+            if bad:  # our own validator's message: safe, and it says what to fix
+                raise PluginLoadError("invalid requirements in plugin.toml: " + str(bad["msg"]).removeprefix("Value error, ")) from None
+            raise PluginLoadError("invalid plugin.toml (ValidationError)") from None
+        except (OSError, tomllib.TOMLDecodeError) as e:
             raise PluginLoadError(f"invalid plugin.toml ({type(e).__name__})") from None
         if m.name != name:
             raise PluginLoadError(f"manifest name {m.name!r} does not match directory {name!r}")
@@ -319,6 +351,13 @@ class PluginManager:
 
     async def _build(self, name: str) -> LoadedPlugin:
         manifest = self._read_manifest(name)
+        if manifest.requirements:
+            if self.packages is None:
+                raise PluginLoadError("this plugin needs packages, which this host cannot install")
+            try:
+                self.packages.activate(name, manifest.requirements)
+            except PackageError as e:
+                raise PluginLoadError(str(e)) from None
         self._generation += 1
         gen = self._generation
         module, prefix = self._import(name, gen)

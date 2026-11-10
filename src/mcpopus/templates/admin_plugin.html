@@ -34,6 +34,18 @@
 {% else %}<p class="mut">This plugin has no settings.</p>{% endif %}
 
 </div>
+{% if requirements %}
+<h2>Packages</h2>
+<div class="panel">
+<p class="mut">This plugin asks for these Python packages, as exact versions. The host installs them (wheels only, nothing runs at install time) when the plugin is added or updated, into a private folder in the data volume. Their code runs inside the host, so it is as trusted as the plugin.</p>
+<table class="grid"><tr><th>Requirement</th></tr>{% for r in requirements %}<tr><td class="num">{{ r }}</td></tr>{% endfor %}</table>
+<p>Status: <span class="pill {{ 'ok' if packages_status == 'installed' else 'warn' }}">{{ packages_status }}</span></p>
+{% if packages_status != "installed" %}
+{% if packages_enabled %}<form method="post" action="/plugins/{{ name }}/packages"><input type="hidden" name="csrf" value="{{ csrf }}"><p><button class="primary">Install packages and load</button></p></form>
+{% else %}<p class="mut">Installing packages is switched off on this host (MCPOPUS_ALLOW_PACKAGE_INSTALL).</p>{% endif %}
+{% endif %}
+</div>
+{% endif %}
 <h2>Usage</h2>
 <div class="panel">
 <div class="stats" style="margin-top:.8rem">

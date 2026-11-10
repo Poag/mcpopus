@@ -77,6 +77,7 @@ class Admin:
             Route("/sources/add", self.guard(self.source_add), methods=["POST"]),
             Route("/sources/{sid}/{action}", self.guard(self.source_action), methods=["POST"]),
             Route("/plugins/{name}/install", self.guard(self.plugin_install), methods=["POST"]),
+            Route("/plugins/{name}/packages", self.guard(self.plugin_packages), methods=["POST"]),
             Route("/plugins/{name}/uninstall", self.guard(self.plugin_uninstall), methods=["POST"]),
             Route("/access", self.guard(self.access), methods=["GET"]),
             Route("/access/revoke", self.guard(self.revoke), methods=["POST"]),
@@ -362,6 +363,7 @@ class Admin:
                 results = []
                 for n in names:
                     try:
+                        await self.h.manager.install_packages(n)  # an update may ask for different packages; the trust box covers them
                         await (self.h.manager.reload(n) if self.h.manager.is_loaded(n) else self.h.manager.load(n))
                         results.append(f"{n} reloaded")
                     except PluginLoadError as e:
@@ -381,13 +383,27 @@ class Admin:
             self.h.sources.install(name, f.get("source", ""), self.h.settings.plugins_dir)
             self.h.manager.discover()
             try:
+                packages = await self.h.manager.install_packages(name)  # the trust box covers these packages too
                 await self.h.manager.load(name)
-                msg = f"{name} installed and loaded. Its endpoint is {self.h.routing.resource_url(name)}; configure it on its page."
+                msg = f"{name} installed and loaded" + (f" with {len(packages)} package(s)" if packages else "") + f". Its endpoint is {self.h.routing.resource_url(name)}; configure it on its page."
             except PluginLoadError as e:
-                msg = f"{name} installed, but it did not load yet: {e}. Open its page to configure it."
+                msg = f"{name} installed, but it did not load yet: {e}. Open its page to configure it or to retry its packages."
         except SourceError as e:
             msg = str(e)
         return self._back(msg)
+
+    async def plugin_packages(self, request: Request) -> Response:
+        """Install (or retry installing) the packages a plugin asks for, then load it. The owner pressed the button."""
+        name = request.path_params["name"]
+        if not valid_plugin_name(name) or name not in self.h.manager.discover():
+            return html_page("error.html", 404, title="Not found", message="")
+        try:
+            done = await self.h.manager.install_packages(name)
+            await (self.h.manager.reload(name) if self.h.manager.is_loaded(name) else self.h.manager.load(name))
+            msg = f"Packages installed ({len(done)}) and {name} loaded."
+        except PluginLoadError as e:
+            msg = f"{name}: {e}"
+        return RedirectResponse(f"/plugins/{name}?msg={_q(msg)}", status_code=303)
 
     async def plugin_uninstall(self, request: Request) -> Response:
         name = request.path_params["name"]
@@ -396,6 +412,8 @@ class Admin:
                 await self.h.manager.unload(name)
             self.h.sources.uninstall(name)
             self.h.manager.discover()
+            if self.h.manager.packages is not None:
+                self.h.manager.packages.remove(name)
             msg = f"{name} uninstalled. Its settings and data are kept."
         except (SourceError, PluginLoadError) as e:
             msg = str(e)
@@ -413,6 +431,9 @@ class Admin:
         return {"name": name, "fields": fields, "policy": pol, "tools": tools, "state": self.h.manager.states.get(name),
                 "enabled": settings.enabled, "error": error, "flash": flash, "has_model": model is not None,
                 "url": self.h.routing.resource_url(name),
+                "requirements": self.h.manager.requirements(name),
+                "packages_status": self.h.manager.packages.status(name, self.h.manager.requirements(name)) if self.h.manager.packages else "none",
+                "packages_enabled": bool(self.h.manager.packages and self.h.manager.packages.enabled),
                 "usage_day": self.h.stats.totals(1, plugin=name), "usage_week": self.h.stats.totals(7, plugin=name),
                 "usage_tools": self.h.stats.by_tool(name, 7), "usage_counters": self.h.stats.counters(name, 30),
                 "usage_days": self.h.stats.per_day(name, 14)}

@@ -131,6 +131,12 @@ docker kill -s USR1 mcpopus     # prints every thread's stack to the container l
 
 Only code locations are logged, never arguments or secrets. Plugin threads appear as `asyncio_*` or `Thread-*` workers; the event loop is `MainThread`.
 
+## After updating to 0.3.0
+
+- Plugins can now list Python packages in `plugin.toml`; the host installs them into `/data/packages` when you add or update the plugin. The
+  host needs outbound access to `pypi.org` and `files.pythonhosted.org` for that (or set `MCPOPUS_PIP_INDEX_URL` to a mirror). The install form
+  lists the packages before you tick the trust box. The new image also carries `pip` for this.
+
 ## After updating to 0.2.0
 
 - The image has a new dependency (`wsproto`, for WebSockets used by some plugins): pull the new image and recreate the container.
@@ -156,6 +162,8 @@ All are environment variables. Required: `MCPOPUS_PUBLIC_URL`, one of `MCPOPUS_S
 | `MCPOPUS_DEFAULT_SOURCE_URL` | `https://github.com/Poag/mcpopus-plugins` | the plugin source listed first on a new install (empty for none) |
 | `MCPOPUS_ADMIN_BIND` / `_PORT` | `127.0.0.1` / `8081` (`0.0.0.0` in the image) | |
 | `MCPOPUS_ADMIN_ALLOWED_HOSTS`, `MCPOPUS_ADMIN_SECURE_COOKIE` | empty, `false` | see above |
+| `MCPOPUS_ALLOW_PACKAGE_INSTALL` | `true` | plugins may list Python packages in their manifest, which the host installs (wheels only) when the plugin is added or updated. `false` switches installing off; packages already installed still load |
+| `MCPOPUS_PIP_INDEX_URL`, `MCPOPUS_PIP_FIND_LINKS` | empty | package index for those installs: empty is PyPI; `none` uses only the find-links location; or an http(s) or file URL for a mirror |
 | `MCPOPUS_STATS_RECORD_IP` | `true` | keep the source address of each requesting agent in the statistics (the Access page). Behind Caddy it is the real address only when `MCPOPUS_TRUST_PROXY_HEADERS` is `true`; otherwise it is the proxy's. `false` stores none |
 | `MCPOPUS_ADMIN_SESSION_IDLE_HOURS` | `168` | an admin session ends after this many hours without use (1 to 2160). Using the UI keeps it alive |
 | `MCPOPUS_ADMIN_SESSION_MAX_DAYS` | `30` | the most a session can last in total, however often it is used (1 to 365) |

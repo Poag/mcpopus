@@ -53,17 +53,17 @@ plugin keeps running the commit you applied until you apply an update. Public ht
 <h4>Update available</h4>
 {% if src.pending.log %}<pre>{{ src.pending.log }}</pre>{% endif %}{% if src.pending.stat %}<pre>{{ src.pending.stat }}</pre>{% endif %}
 <form method="post" action="/sources/{{ src.id }}/apply"><input type="hidden" name="csrf" value="{{ csrf }}">
-<label><input type="checkbox" name="trust" value="1" required> I have reviewed this update and trust it. Installed plugins from this source will reload.</label>
+<label><input type="checkbox" name="trust" value="1" required> I have reviewed this update and trust it, including any Python packages it asks for. Installed plugins from this source will reload.</label>
 <p><button class="primary">Apply update</button></p></form>
 {% endif %}
 {% if src.fetched %}
 <table class="grid" style="margin-top:.8rem"><tr><th>Plugin</th><th>Version</th><th>Description</th><th style="text-align:right">Install</th></tr>
-{% for p in src.plugins %}<tr><td><div class="name">{{ icon("plugins") }}{{ p.name }}</div></td><td class="num">{{ p.version }}</td><td>{{ p.description }}{% if p.problem %}<br><span class="err-text">{{ p.problem }}</span>{% endif %}</td><td>
+{% for p in src.plugins %}<tr><td><div class="name">{{ icon("plugins") }}{{ p.name }}</div></td><td class="num">{{ p.version }}</td><td>{{ p.description }}{% if p.requirements %}<div class="sub">Python packages it installs: {{ p.requirements | map("truncate", 40) | join(", ") }}</div>{% endif %}{% if p.problem %}<br><span class="err-text">{{ p.problem }}</span>{% endif %}</td><td>
 {% if p.problem %}{% elif p.installed %}<div class="acts"><span class="pill ok">installed</span>
 <form method="post" action="/plugins/{{ p.name }}/uninstall"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="danger">Uninstall</button></form></div>
 {% else %}
 <form method="post" action="/plugins/{{ p.name }}/install" class="acts"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="source" value="{{ src.id }}">
-<label style="margin:0"><input type="checkbox" name="trust" value="1" required> I trust this code</label> <button class="primary">Install</button></form>
+<label style="margin:0"><input type="checkbox" name="trust" value="1" required> I trust this code{% if p.requirements %} and its packages{% endif %}</label> <button class="primary">Install</button></form>
 {% endif %}</td></tr>
 {% else %}<tr><td colspan="4" class="mut">No plugins found under plugins/ in this repository.</td></tr>{% endfor %}
 </table>

@@ -33,6 +33,13 @@ def _positive(raw: str | None, default: float, low: float, high: float, name: st
     return value
 
 
+def _index_url(raw: str | None) -> str:
+    v = (raw or "").strip()
+    if v and v != "none" and not v.startswith(("https://", "http://", "file://")):
+        raise SettingsError("MCPOPUS_PIP_INDEX_URL must be 'none' or an http(s) or file URL")
+    return v[:500]
+
+
 def parse_bool(value: str | None, name: str, default: bool = False) -> bool:
     if value is None or value.strip() == "":
         return default
@@ -64,6 +71,9 @@ class Settings:
     max_dcr_clients: int = 200
     admin_allowed_hosts: tuple[str, ...] = ()
     admin_secure_cookie: bool = False
+    allow_package_install: bool = True  # plugins may ask for pip packages, installed when the owner adds the plugin
+    pip_index_url: str = ""  # empty: pip's default index; 'none': no index (use pip_find_links only); or an http(s) / file URL
+    pip_find_links: str = ""
     stats_record_ip: bool = True  # keep the source address of each requesting agent in the statistics
     admin_session_idle_hours: float = 168.0  # a session ends after this long without use (7 days)
     admin_session_max_days: float = 30.0  # and never lasts longer than this in total
@@ -127,6 +137,9 @@ class Settings:
             access_token_ttl=int(get("ACCESS_TOKEN_TTL", "900") or 900),
             admin_allowed_hosts=tuple(h.strip().lower() for h in (get("ADMIN_ALLOWED_HOSTS", "") or "").split(",") if h.strip()),
             admin_secure_cookie=parse_bool(get("ADMIN_SECURE_COOKIE"), "MCPOPUS_ADMIN_SECURE_COOKIE"),
+            allow_package_install=parse_bool(get("ALLOW_PACKAGE_INSTALL"), "MCPOPUS_ALLOW_PACKAGE_INSTALL", default=True),
+            pip_index_url=_index_url(get("PIP_INDEX_URL")),
+            pip_find_links=(get("PIP_FIND_LINKS") or "").strip()[:500],
             stats_record_ip=parse_bool(get("STATS_RECORD_IP"), "MCPOPUS_STATS_RECORD_IP", default=True),
             admin_session_idle_hours=_positive(get("ADMIN_SESSION_IDLE_HOURS"), 168.0, 1.0, 24 * 90, "MCPOPUS_ADMIN_SESSION_IDLE_HOURS"),
             admin_session_max_days=_positive(get("ADMIN_SESSION_MAX_DAYS"), 30.0, 1.0, 365.0, "MCPOPUS_ADMIN_SESSION_MAX_DAYS"),

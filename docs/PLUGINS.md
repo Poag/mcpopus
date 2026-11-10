@@ -16,7 +16,10 @@ plugins/notes/
 name = "notes"                 # must equal the directory name
 version = "0.1.0"
 description = "Plain-text notes."
-min_host_version = "0.1.0"     # load is refused on an older host
+min_host_version = "0.1.0"     # load is refused on an older host (use "0.3.0" if you list requirements)
+requirements = [               # optional: Python packages the host installs when the plugin is added (host 0.3.0 and later)
+  "icalendar==6.1.0",
+]
 ```
 
 ## Worked example
@@ -158,9 +161,40 @@ new version swapped in, requests already running on the old version get up to 5 
 
 ## Dependencies
 
-The first version bundles a fixed set of libraries in the image and installs nothing at run time. A plugin may
-import anything in `requirements.lock` (notably `httpx2`, `pydantic`, `cryptography`, `starlette`, `mcp`). To add
-a library:
+There are two ways for a plugin to use a library.
+
+**1. Ask for it in the manifest (host 0.3.0 and later).** List exact pins in `requirements` in `plugin.toml`. The host installs them
+when the owner adds the plugin from a source (the trust box in the install form covers the packages, and the form lists them first),
+when an update that changes them is applied, or from the **Install packages and load** button on the plugin's page. Nothing is installed
+when a plugin merely loads: a plugin whose packages are missing does not load and says so. Set `min_host_version = "0.3.0"` so an older
+host refuses the plugin instead of failing on an import.
+
+```toml
+requirements = [
+  "icalendar==6.1.0",
+  "some-lib==2.4.1 --hash=sha256:<64 hex digits> --hash=sha256:<64 hex digits>",
+]
+```
+
+Rules, enforced by the host:
+- Each entry is `name==version`, optionally followed by `--hash=sha256:...` values. No ranges, extras, URLs, VCS references, local paths,
+  environment markers or pip options. At most 20 entries, no duplicates. Either every entry has a hash or none does; with hashes pip runs in
+  `--require-hashes` mode, which also needs every dependency of those packages to be listed with hashes. Pin dependencies too if you want that.
+- Only wheels are installed (`--only-binary :all:`). A package that has no wheel for the host's platform (the image is Linux, amd64 or arm64)
+  cannot be used. Nothing runs at install time; the package's code runs when your plugin imports it, inside the host.
+- Packages are installed into `/data/packages/<plugin>/<fingerprint>/` and are put on `sys.path` after everything the host provides, so a
+  host package always wins. Asking for a different version of a package the host provides (anything in `requirements.lock`, including its
+  dependencies) is refused at load with the versions named. Two plugins cannot use different versions of the same package.
+- If an update changes a version of a package that is already loaded, the new version needs a restart of the host, and the old plugin keeps
+  serving until then.
+- Installing needs the host to reach PyPI (`pypi.org` and `files.pythonhosted.org`). The owner can point it at a mirror with
+  `MCPOPUS_PIP_INDEX_URL` and `MCPOPUS_PIP_FIND_LINKS`, or turn installing off with `MCPOPUS_ALLOW_PACKAGE_INSTALL=false` (packages already
+  installed still load).
+- pip runs with `--isolated`, a five minute limit, and an environment without any `MCPOPUS_*` variable, so it never sees the host's secret key.
+- Uninstalling the plugin deletes its packages. Failures are shown on the page with pip's own error line.
+
+**2. Add it to the host image.** For a library many plugins share, or one without a wheel, put it in the host itself. A plugin may import
+anything in `requirements.lock` (notably `httpx2`, `wsproto`, `pydantic`, `cryptography`, `starlette`, `mcp`). To add a library:
 
 1. Add it to `dependencies` in `pyproject.toml` with an exact version, and use it from the plugin.
 2. Regenerate the lock: `uv pip compile pyproject.toml --universal --generate-hashes -o requirements.lock`.
