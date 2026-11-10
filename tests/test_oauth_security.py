@@ -283,3 +283,4 @@ async def test_failed_login_logs_the_reason_but_not_the_secrets(running, caplog)
     text = caplog.text
     assert ": password" in text and ": authenticator code" in text and "authenticator is not set up" in text
     assert "a wrong password 123" not in text and PASSWORD not in text
+

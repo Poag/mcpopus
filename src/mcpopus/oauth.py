@@ -418,18 +418,26 @@ class OAuthServer:
         h = hash_token(token)
         row = self.store.get_token(h) if token else None
         invalid = OAuthError("invalid_grant", "the refresh token is invalid or has expired")
+
+        def refused(reason: str) -> OAuthError:  # the client sees one error; the owner's log says why (this is what forces a re-sign-in)
+            log.warning("refresh refused for client %s: %s", client.client_id, reason)
+            return invalid
+
         if row is None or row["kind"] != "refresh":
-            raise invalid
+            raise refused("token not found (never issued here, or purged after it expired)" if row is None else "not a refresh token")
         grant = self.store.get_grant(row["grant_id"])
         if grant is None or grant["revoked_at"] is not None or grant["client_id"] != client.client_id:
-            raise invalid
+            raise refused("grant is gone or revoked" if grant is None or grant["revoked_at"] is not None else "token belongs to another client")
         if row["used_at"] is not None:
             # A rotated refresh token came back: someone holds a stale copy.
             self.store.revoke_grant(grant["id"])
             log.warning("refresh token reuse; grant %s revoked", grant["id"])
             raise invalid
-        if row["expires_at"] < time.time() or not self.store.mark_refresh_used(h):
-            raise invalid
+        if row["expires_at"] < time.time():
+            raise refused("refresh token expired")
+        if not self.store.mark_refresh_used(h):
+            raise refused("lost a race: the same refresh token was presented twice at once")
+        diag.debug("refresh ok client=%s grant=%s", client.client_id, grant["id"])
         return self._issue(grant["id"], grant["scope"])
 
     # ------------------------------------------------------------------ revoke
@@ -454,6 +462,26 @@ class OAuthServer:
                 else:
                     self.store.delete_token(row["token_hash"])
         return json_response({})  # RFC 7009: 200 whether or not the token existed
+
+    def explain_access_failure(self, token: str, resource: str) -> tuple[str, str | None]:
+        """Why an access token was refused: (reason, client id). For the owner's log only; callers always get the same 401."""
+        row = self.store.get_token(hash_token(token))
+        if row is None:
+            return "unknown (never issued here, or purged after it expired)", None
+        if row["kind"] != "access":
+            return "not an access token", None
+        grant = self.store.get_grant(row["grant_id"])
+        cid = grant["client_id"] if grant else None
+        if row["expires_at"] <= time.time():
+            return "expired", cid
+        if grant is None or grant["revoked_at"] is not None:
+            return "grant revoked", cid
+        client = self.store.get_client(grant["client_id"])
+        if client is None or client.revoked:
+            return "client revoked", cid
+        if not ct_equal(grant["resource"], resource):
+            return "issued for another plugin", cid
+        return "unknown", cid
 
     # -------------------------------------------------- resource-server checks
     def verify_access_token(self, token: str, resource: str) -> Principal | None:

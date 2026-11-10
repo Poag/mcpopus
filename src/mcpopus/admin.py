@@ -505,10 +505,15 @@ class Admin:
         clients = self.h.store.list_clients()
         names = {c.client_id: c.name for c in clients}
         grants = self.h.store.list_grants()
+        activity = self.h.store.grant_activity()
         shown = []
         for g in grants:
             plugin = self.h.routing.plugin_for_resource(g["resource"]) or g["resource"]
-            shown.append({"id": g["id"], "client": g["client_name"], "plugin": plugin, "created": time.strftime("%Y-%m-%d %H:%M", time.gmtime(g["created_at"])), "revoked": g["revoked_at"] is not None})
+            act = activity.get(g["id"], {})
+            state = "revoked" if g["revoked_at"] is not None else "active" if act.get("refresh_until") else "expired"
+            shown.append({"id": g["id"], "client": g["client_name"], "client_id": g["client_id"], "plugin": plugin, "state": state,
+                          "created": time.strftime("%Y-%m-%d %H:%M", time.gmtime(g["created_at"])), "revoked": g["revoked_at"] is not None,
+                          "refreshed": act.get("last_issued") or 0})
         return self.page(request, "admin_access.html", usage=self.h.stats.by_client(30), agents=self.h.stats.agents(30), client_names=names, clients=clients, grants=shown, flash=request.query_params.get("msg", ""),
                          plugins=self.h.manager.discover(), default_redirect=self.h.settings.allowed_redirect_uris[0])
 

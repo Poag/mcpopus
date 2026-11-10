@@ -4,12 +4,12 @@
 {% block content %}
 <div class="pagehead">{{ icon("access", 22) }}<h1>Access</h1></div>
 <h2>Grants <span class="count">{{ grants | length }}</span></h2>
-<p class="mut">One grant per authorisation. Revoking a grant ends its tokens at once.</p>
-<table class="grid"><tr><th>Application</th><th>Plugin</th><th>Created (UTC)</th><th>State</th><th style="text-align:right">Actions</th></tr>
-{% for g in grants %}<tr><td>{{ g.client }}</td><td class="num">{{ g.plugin }}</td><td class="num">{{ g.created }}</td>
-<td>{% if g.revoked %}<span class="pill grey">revoked</span>{% else %}<span class="pill ok">active</span>{% endif %}</td>
+<p class="mut">One grant per authorisation: every time a connector is added again or signs in from scratch, a new client and grant appear. Revoking a grant ends its tokens at once. Grants that expired over a week ago, and registrations that never completed, are removed automatically.</p>
+<table class="grid"><tr><th>Application</th><th>Plugin</th><th>Created (UTC)</th><th>Last refreshed</th><th>State</th><th style="text-align:right">Actions</th></tr>
+{% for g in grants %}<tr><td>{{ g.client }}</td><td class="num">{{ g.plugin }}</td><td class="num">{{ g.created }}</td><td class="num">{{ g.refreshed | ago }}</td>
+<td>{% if g.state == "revoked" %}<span class="pill grey">revoked</span>{% elif g.state == "expired" %}<span class="pill warn" title="Its refresh token has expired: this connection must sign in again">expired</span>{% else %}<span class="pill ok">active</span>{% endif %}</td>
 <td><div class="acts">{% if not g.revoked %}<form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="grant" value="{{ g.id }}"><button class="danger">{{ icon("stop", 14) }}Revoke tokens</button></form>{% endif %}</div></td></tr>
-{% else %}<tr><td colspan="5" class="mut">No grants yet.</td></tr>{% endfor %}
+{% else %}<tr><td colspan="6" class="mut">No grants yet.</td></tr>{% endfor %}
 </table>
 <h2>Clients <span class="count">{{ clients | length }}</span></h2>
 <table class="grid"><tr><th>Name</th><th>Kind</th><th>Client ID</th><th>Return addresses</th><th>Calls (30 days)</th><th>Last used</th><th>State</th><th style="text-align:right">Actions</th></tr>

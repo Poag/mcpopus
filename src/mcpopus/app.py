@@ -112,6 +112,7 @@ def build_public_app(host: Host) -> Starlette:
             while True:
                 host.store.purge_expired()
                 host.stats.prune()
+                host.store.purge_stale()
                 await asyncio.sleep(600)
 
         janitor = asyncio.create_task(housekeeping())

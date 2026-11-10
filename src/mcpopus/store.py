@@ -221,6 +221,23 @@ class Store:
             " ORDER BY g.created_at DESC"
         )
 
+    def grant_activity(self) -> dict[str, dict[str, Any]]:
+        """Per grant: when its newest unused refresh token expires (None: it cannot be refreshed any more) and when tokens were last issued."""
+        rows = self._all(
+            "SELECT g.id, MAX(CASE WHEN t.kind='refresh' AND t.used_at IS NULL AND t.expires_at>? THEN t.expires_at END) AS refresh_until,"
+            " MAX(t.created_at) AS last_issued FROM grants g LEFT JOIN tokens t ON t.grant_id=g.id GROUP BY g.id", (time.time(),))
+        return {r["id"]: dict(r) for r in rows}
+
+    def purge_stale(self) -> tuple[int, int]:
+        """Forget connections nobody can use any more: grants that were revoked over 30 days ago, or whose tokens have all expired
+        for over 7 days, and then dynamically registered clients with no grant left (older than a day). Returns (grants, clients)."""
+        now = time.time()
+        g = self._run(
+            "DELETE FROM grants WHERE (revoked_at IS NOT NULL AND revoked_at<?) OR (revoked_at IS NULL AND created_at<? AND id NOT IN"
+            " (SELECT grant_id FROM tokens WHERE kind='refresh' AND expires_at>?))", (now - 30 * 86400, now - 7 * 86400, now - 7 * 86400)).rowcount
+        c = self.prune_unused_dcr_clients(now - 86400)
+        return g, c
+
     def revoke_grant(self, grant_id: str) -> bool:
         cur = self._run(
             "UPDATE grants SET revoked_at=? WHERE id=? AND revoked_at IS NULL", (time.time(), grant_id)
