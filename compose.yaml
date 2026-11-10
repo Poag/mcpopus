@@ -23,6 +23,7 @@ services:
       # Hostnames you use to open the admin UI, comma separated (IP addresses and localhost always work).
       # Example: pi4.example.ts.net. Without the name you browse by, the admin page says "Misdirected request".
       MCPOPUS_ADMIN_ALLOWED_HOSTS: ${MCPOPUS_ADMIN_ALLOWED_HOSTS:-}
+      MCPOPUS_STATELESS_HTTP: ${MCPOPUS_STATELESS_HTTP:-true}
       MCPOPUS_ALLOW_PACKAGE_INSTALL: ${MCPOPUS_ALLOW_PACKAGE_INSTALL:-true}
       MCPOPUS_PIP_INDEX_URL: ${MCPOPUS_PIP_INDEX_URL:-}
       MCPOPUS_STATS_RECORD_IP: ${MCPOPUS_STATS_RECORD_IP:-true}

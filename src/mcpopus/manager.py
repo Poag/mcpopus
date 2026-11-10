@@ -160,8 +160,9 @@ class PluginServer(MCPServer):
 
 class PluginManager:
     def __init__(self, plugins_dir: Path, data_dir: Path, configs: ConfigStore, audit: AuditLog,
-                 extra_paths: Callable[[], dict[str, Path]] | None = None, stats: Any = None, packages: Packages | None = None) -> None:
+                 extra_paths: Callable[[], dict[str, Path]] | None = None, stats: Any = None, packages: Packages | None = None, stateless: bool = True) -> None:
         self.packages = packages
+        self.stateless = stateless  # no MCP session ids: a restart or reload cannot strand a client that holds one
         self.stats = stats  # a Stats, or None (no usage recording)
         sys.dont_write_bytecode = True  # a stale .pyc must never survive a reload
         self.extra_paths = extra_paths or (lambda: {})  # plugins installed from sources: name -> directory
@@ -411,6 +412,7 @@ class PluginManager:
             server, tools, declared = self._build_server(name, manifest, plugin, policy)
             app = server.streamable_http_app(
                 streamable_http_path="/",
+                stateless_http=self.stateless,
                 transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
             )  # Host is checked by the gateway before any request reaches here
             ready: asyncio.Future[None] = asyncio.get_running_loop().create_future()

@@ -245,10 +245,24 @@ async def test_in_flight_request_is_drained_before_old_version_is_stopped(runnin
         assert (await call).content[0].text == "finished"
 
 
-async def test_legacy_session_after_reload(running):
-    """Observed behaviour, recorded in BUILD_LOG: a legacy (session-based) client connected before a reload
-    cannot continue; a new connection works."""
+async def test_legacy_session_survives_a_reload_when_stateless(running):
+    """The default (stateless HTTP): a client connected before a reload, or before a host restart, carries on. There is no
+    server-side session to lose."""
     mgr = running.host.manager
+    make_plugin(running.plugins_dir, "alpha", good("v1"))
+    await mgr.load("alpha")
+    tok = (await get_tokens(running, "alpha"))[1]
+    async with mcp(running, "alpha", mode="legacy", tok=tok) as old:
+        await old.list_tools()
+        await mgr.reload("alpha")
+        assert (await old.call_tool("who", {})).content[0].text == "I am v1"
+
+
+async def test_legacy_session_after_reload_when_sessions_are_on(running):
+    """Observed behaviour with MCPOPUS_STATELESS_HTTP=false, recorded in BUILD_LOG: a legacy (session-based) client connected
+    before a reload cannot continue (the host answers 404 Session not found); a new connection works."""
+    mgr = running.host.manager
+    mgr.stateless = False
     make_plugin(running.plugins_dir, "alpha", good("v1"))
     await mgr.load("alpha")
     tok = (await get_tokens(running, "alpha"))[1]
@@ -279,3 +293,20 @@ async def test_plugin_instructions_reach_the_mcp_client(running):
         assert c.instructions == "Use British English. Daily notes live in Daily/."
     async with mcp(running, "plain1") as c:
         assert c.instructions == "test plugin plain1"  # without its own text, the manifest description
+
+
+async def test_stateless_server_issues_no_session_id_and_accepts_a_stale_one(running):
+    import httpx2
+
+    mgr = running.host.manager
+    make_plugin(running.plugins_dir, "alpha", good("v1"))
+    await mgr.load("alpha")
+    tok = (await get_tokens(running, "alpha"))[1]["access_token"]
+    h = {"Authorization": f"Bearer {tok}", "Accept": "application/json, text/event-stream", "Content-Type": "application/json", "MCP-Protocol-Version": "2025-06-18"}
+    init = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}}}
+    async with httpx2.AsyncClient(base_url=running.base) as c:
+        r = await c.post("/alpha/", headers=h, json=init)
+        assert r.status_code == 200 and "mcp-session-id" not in r.headers
+        await mgr.reload("alpha")
+        r = await c.post("/alpha/", headers={**h, "Mcp-Session-Id": "0123456789abcdef0123456789abcdef"}, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+        assert r.status_code == 200 and "who" in r.text

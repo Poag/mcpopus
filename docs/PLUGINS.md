@@ -153,9 +153,10 @@ first. If that fails, for any reason, the old version keeps serving and the erro
 new version swapped in, requests already running on the old version get up to 5 seconds to finish, and then its
 `teardown` runs. Consequences for plugin authors:
 - For a moment two instances of the plugin exist. Do not hold exclusive locks that the new instance needs in `setup`.
-- Clients connected through a session (the older protocol revision) must reconnect after a reload; their next call
-  fails and a new connection works (observed, `tests/test_manager.py::test_legacy_session_after_reload`). Clients
-  are not sent `tools/list_changed` by a reload.
+- By default the host serves MCP over HTTP without session ids (stateless), so a client connected before a reload, or before a host restart,
+  simply carries on. With `MCPOPUS_STATELESS_HTTP=false` sessions are used again, and a client holding an old session id gets `404 Session
+  not found` and must reconnect (`tests/test_manager.py::test_legacy_session_after_reload_when_sessions_are_on`). Clients are not sent
+  `tools/list_changed` by a reload, so they keep the tool list they cached until they refresh it.
 - Module-level state is per version. Persist anything that matters in `data_dir`.
 - Python caches nothing for plugins: bytecode writing is off in the host.
 
