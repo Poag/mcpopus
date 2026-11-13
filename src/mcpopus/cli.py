@@ -9,13 +9,12 @@ import logging
 import os
 import sys
 
-from . import credentials
-from .crypto import generate_key, hash_token, new_token
-from .settings import Settings, SettingsError
-from .store import Client, Store
+# Heavy modules (cryptography, argon2, the MCP SDK) are imported inside the commands that need them, so that quick commands such as
+# `mcpopus healthcheck`, which the container runs every 30 seconds, start fast and use almost no CPU.
 
 
 def _settings() -> Settings:
+    from .settings import Settings, SettingsError
     try:
         return Settings.from_env()
     except SettingsError as e:
@@ -24,6 +23,7 @@ def _settings() -> Settings:
 
 
 def _read_password(realm: str) -> str:
+    from . import credentials
     env = os.environ.get(f"MCPOPUS_INIT_{realm.upper()}_PASSWORD")
     if env:
         return env
@@ -39,6 +39,7 @@ def _read_password(realm: str) -> str:
 
 
 def cmd_totp(args: argparse.Namespace) -> int:
+    from . import credentials
     secret = credentials.new_totp_secret()
     print(f"secret: {secret}")
     print(f"uri:    {credentials.provisioning_uri(secret, args.account)}")
@@ -46,11 +47,15 @@ def cmd_totp(args: argparse.Namespace) -> int:
 
 
 def cmd_genkey(args: argparse.Namespace) -> int:
+    from .crypto import generate_key
+
     print(generate_key())
     return 0
 
 
 def cmd_init(args: argparse.Namespace) -> int:
+    from . import credentials
+    from .store import Store
     s = _settings()
     store = Store(s.db_path)
     for realm in args.realms:
@@ -71,6 +76,8 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def cmd_client(args: argparse.Namespace) -> int:
+    from .crypto import hash_token, new_token
+    from .store import Client, Store
     s = _settings()
     store = Store(s.db_path)
     if args.action == "add":
@@ -124,6 +131,7 @@ def cmd_plugins(args: argparse.Namespace) -> int:
 def cmd_smoke(args: argparse.Namespace) -> int:
     """Import every module of the package and every declared dependency, then exercise
     the lazily used ones. Used by CI inside the built image."""
+    from . import credentials
     import importlib
     import pkgutil
 
