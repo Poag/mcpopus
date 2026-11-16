@@ -164,7 +164,26 @@ class Store:
         return cur.rowcount == 1
 
     def delete_client(self, client_id: str) -> None:
+        """Delete a client and everything it holds, so no orphaned grant or token is left behind."""
+        for g in self._all("SELECT id FROM grants WHERE client_id=?", (client_id,)):
+            self._run("DELETE FROM tokens WHERE grant_id=?", (g["id"],))
+        self._run("DELETE FROM grants WHERE client_id=?", (client_id,))
         self._run("DELETE FROM clients WHERE client_id=?", (client_id,))
+
+    def delete_grant(self, grant_id: str) -> str | None:
+        """Remove one grant and its tokens. A dynamically registered client left with no grant is removed too (it can do nothing).
+        Returns a short description of what was removed, or None if there was no such grant."""
+        row = self._one("SELECT client_id FROM grants WHERE id=?", (grant_id,))
+        if row is None:
+            return None
+        self._run("DELETE FROM tokens WHERE grant_id=?", (grant_id,))
+        self._run("DELETE FROM grants WHERE id=?", (grant_id,))
+        client = self.get_client(row["client_id"])
+        left = self._one("SELECT COUNT(*) AS n FROM grants WHERE client_id=?", (row["client_id"],))["n"]
+        if client is not None and client.kind == "dcr" and left == 0:
+            self._run("DELETE FROM clients WHERE client_id=?", (client.client_id,))
+            return "grant and its now-unused client"
+        return "grant"
 
     def count_dcr_clients(self) -> int:
         return self._one("SELECT COUNT(*) AS n FROM clients WHERE kind='dcr'")["n"]

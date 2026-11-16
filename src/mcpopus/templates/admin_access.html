@@ -5,21 +5,23 @@
 <div class="pagehead">{{ icon("access", 22) }}<h1>Access</h1></div>
 <h2>Grants <span class="count">{{ grants | length }}</span></h2>
 <p class="mut">One grant per authorisation: every time a connector is added again or signs in from scratch, a new client and grant appear. Revoking a grant ends its tokens at once. Grants that expired over a week ago, and registrations that never completed, are removed automatically.</p>
-<table class="grid"><tr><th>Application</th><th>Plugin</th><th>Created (UTC)</th><th>Last refreshed</th><th>State</th><th style="text-align:right">Actions</th></tr>
-{% for g in grants %}<tr><td>{{ g.client }}</td><td class="num">{{ g.plugin }}</td><td class="num">{{ g.created }}</td><td class="num">{{ g.refreshed | ago }}</td>
+<table class="grid"><tr><th>Application</th><th>Client ID</th><th>Plugin</th><th>Created (UTC)</th><th>Last refreshed</th><th>State</th><th style="text-align:right">Actions</th></tr>
+{% for g in grants %}<tr><td>{{ g.client }}</td><td class="num"><code title="{{ g.client_id }}">{{ g.client_id }}</code></td><td class="num">{{ g.plugin }}</td><td class="num">{{ g.created }}</td><td class="num">{{ g.refreshed | ago }}</td>
 <td>{% if g.state == "revoked" %}<span class="pill grey">revoked</span>{% elif g.state == "expired" %}<span class="pill warn" title="Its refresh token has expired: this connection must sign in again">expired</span>{% else %}<span class="pill ok">active</span>{% endif %}</td>
-<td><div class="acts">{% if not g.revoked %}<form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="grant" value="{{ g.id }}"><button class="danger">{{ icon("stop", 14) }}Revoke tokens</button></form>{% endif %}</div></td></tr>
-{% else %}<tr><td colspan="6" class="mut">No grants yet.</td></tr>{% endfor %}
+<td><div class="acts">{% if not g.revoked %}<form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="grant" value="{{ g.id }}"><button class="danger">{{ icon("stop", 14) }}Revoke tokens</button></form>{% endif %}
+{% if g.state != "active" %}<form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="delete_grant" value="{{ g.id }}"><button class="ib danger" title="Remove this grant from the list" aria-label="Remove grant for {{ g.plugin }}">{{ icon("trash") }}</button></form>{% endif %}</div></td></tr>
+{% else %}<tr><td colspan="7" class="mut">No grants yet.</td></tr>{% endfor %}
 </table>
 <h2>Clients <span class="count">{{ clients | length }}</span></h2>
-<table class="grid"><tr><th>Name</th><th>Kind</th><th>Client ID</th><th>Return addresses</th><th>Calls (30 days)</th><th>Last used</th><th>State</th><th style="text-align:right">Actions</th></tr>
+<table class="grid"><tr><th>Name</th><th>Kind</th><th>Client ID</th><th>Connected to</th><th>Return addresses</th><th>Calls (30 days)</th><th>Last used</th><th>State</th><th style="text-align:right">Actions</th></tr>
 {% for c in clients %}<tr><td>{{ c.name }}</td><td>{{ c.kind }}{% if c.resource %}<div class="sub">bound to {{ c.resource }}</div>{% endif %}</td><td class="num"><code>{{ c.client_id }}</code></td>
+<td>{% for cg in client_grants.get(c.client_id, []) %}<span class="pill {{ 'ok' if cg.state == 'active' else 'grey' }}" title="{{ cg.state }}">{{ cg.plugin }}{% if cg.state != 'active' %} ({{ cg.state }}){% endif %}</span> {% else %}<span class="mut">nothing</span>{% endfor %}</td>
 <td class="sub">{% for u in c.redirect_uris %}{{ u }}<br>{% endfor %}</td>
 {% set u = usage.get(c.client_id, {}) %}<td class="num">{{ u.calls or 0 }}{% if u.errors %} <span class="sub">({{ u.errors }} failed)</span>{% endif %}</td><td class="num">{{ (u.last or 0) | ago }}</td>
 <td>{% if c.revoked %}<span class="pill grey">revoked</span>{% else %}<span class="pill ok">active</span>{% endif %}</td>
 <td><div class="acts">{% if not c.revoked %}<form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="client" value="{{ c.client_id }}"><button class="danger">Revoke</button></form>{% endif %}
 <form method="post" action="/access/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="delete_client" value="{{ c.client_id }}"><button class="ib danger" title="Delete" aria-label="Delete client {{ c.name }}">{{ icon("trash") }}</button></form></div></td></tr>
-{% else %}<tr><td colspan="8" class="mut">No clients yet.</td></tr>{% endfor %}
+{% else %}<tr><td colspan="9" class="mut">No clients yet.</td></tr>{% endfor %}
 </table>
 <h2>Requesting agents <span class="count">{{ agents | length }}</span></h2>
 <p class="mut">Who has called your plugins in the last 30 days, from request headers. The agent name and protocol are sent by the caller, so treat them as a hint, not proof of identity; access is decided by the token alone.</p>

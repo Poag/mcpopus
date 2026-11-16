@@ -514,7 +514,10 @@ class Admin:
             shown.append({"id": g["id"], "client": g["client_name"], "client_id": g["client_id"], "plugin": plugin, "state": state,
                           "created": time.strftime("%Y-%m-%d %H:%M", time.gmtime(g["created_at"])), "revoked": g["revoked_at"] is not None,
                           "refreshed": act.get("last_issued") or 0})
-        return self.page(request, "admin_access.html", usage=self.h.stats.by_client(30), agents=self.h.stats.agents(30), client_names=names, clients=clients, grants=shown, flash=request.query_params.get("msg", ""),
+        by_client: dict[str, list[dict]] = {}
+        for g in shown:
+            by_client.setdefault(g["client_id"], []).append({"plugin": g["plugin"], "state": g["state"]})
+        return self.page(request, "admin_access.html", client_grants=by_client, usage=self.h.stats.by_client(30), agents=self.h.stats.agents(30), client_names=names, clients=clients, grants=shown, flash=request.query_params.get("msg", ""),
                          plugins=self.h.manager.discover(), default_redirect=self.h.settings.allowed_redirect_uris[0])
 
     async def revoke(self, request: Request) -> Response:
@@ -524,10 +527,12 @@ class Admin:
             msg = "Grant revoked." if ok else "No such active grant."
         elif f.get("client"):
             msg = "Client revoked, with every grant it holds." if self.h.store.revoke_client(f["client"]) else "No such client."
+        elif f.get("delete_grant"):
+            what = self.h.store.delete_grant(f["delete_grant"])
+            msg = f"Removed the {what}." if what else "No such grant."
         elif f.get("delete_client"):
-            self.h.store.revoke_client(f["delete_client"])
             self.h.store.delete_client(f["delete_client"])
-            msg = "Client deleted."
+            msg = "Client deleted, with its grants."
         else:
             msg = "Nothing to revoke."
         return RedirectResponse(f"/access?msg={_q(msg)}", status_code=303)

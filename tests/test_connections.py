@@ -59,3 +59,29 @@ async def test_access_page_shows_expired_and_last_refreshed(running):
         assert "Last refreshed" in page and ">active<" in page
         st._run("DELETE FROM tokens WHERE grant_id=?", (gid,))
         assert ">expired<" in (await a.get("/access")).text
+
+
+async def test_access_page_ties_grants_to_clients_and_revoked_grants_can_be_removed(running):
+    reg, _ = await get_tokens(running, "hello")
+    st = running.host.store
+    gid = st.list_grants()[0]["id"]
+    async with running.admin() as (a, csrf):
+        page = (await a.get("/access")).text
+        assert page.count(reg["client_id"]) >= 2  # shown against the grant and against the client
+        assert "Connected to" in page and ">hello<" in page.replace(" ", "")
+        assert "delete_grant" not in page  # an active grant can only be revoked, not removed
+        await a.post("/access/revoke", data={"csrf": csrf, "grant": gid})
+        page = (await a.get("/access")).text
+        assert ">revoked<" in page and 'name="delete_grant"' in page and "hello (revoked)" in page
+        r = await a.post("/access/revoke", data={"csrf": csrf, "delete_grant": gid})
+        assert "Removed the grant and its now-unused client" in (await a.get(r.headers["location"])).text
+        assert st.get_grant(gid) is None and st.get_client(reg["client_id"]) is None
+        assert "No such grant" in (await a.get((await a.post("/access/revoke", data={"csrf": csrf, "delete_grant": gid})).headers["location"])).text
+
+
+async def test_deleting_a_client_leaves_no_grant_or_token_behind(running):
+    reg, tok = await get_tokens(running, "hello")
+    st = running.host.store
+    gid = st.list_grants()[0]["id"]
+    st.delete_client(reg["client_id"])
+    assert st.get_grant(gid) is None and st._one("SELECT 1 FROM tokens WHERE grant_id=?", (gid,)) is None
