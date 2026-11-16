@@ -130,11 +130,12 @@ def test_purge_removes_expired_rows(tmp_path):
 
     st = Store(tmp_path / "t.db")
     st.add_grant("g", "c", "r", "mcp")
-    st.add_token("old", "access", "g", time.time() - 5)
+    st.add_token("old", "access", "g", time.time() - 2 * 86400)
+    st.add_token("recent", "access", "g", time.time() - 5)  # expired, but kept for a day so a late client is told "expired"
     st.add_token("new", "access", "g", time.time() + 500)
     st.add_code("oldc", "g", "c", "u", "x", time.time() - 5)
     st.purge_expired()
-    assert st.get_token("old") is None and st.get_token("new") is not None
+    assert st.get_token("old") is None and st.get_token("recent") is not None and st.get_token("new") is not None
     assert st.consume_code("oldc") == (None, False)
 
 

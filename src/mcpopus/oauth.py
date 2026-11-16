@@ -87,6 +87,7 @@ class OAuthServer:
         self.login_global = RateLimiter(20, 900)
         self.register_ip = RateLimiter(10, 3600)
         self.token_ip = RateLimiter(60, 60)
+        self._refreshed: set[str] = set()
         self.token_client_failures = RateLimiter(10, 300)
 
     # ------------------------------------------------------------------ routes
@@ -437,6 +438,9 @@ class OAuthServer:
             raise refused("refresh token expired")
         if not self.store.mark_refresh_used(h):
             raise refused("lost a race: the same refresh token was presented twice at once")
+        if client.client_id not in self._refreshed:  # the first refresh of each client since start-up is worth a line: it shows a client recovered after a restart
+            self._refreshed.add(client.client_id)
+            log.info("client %s refreshed its tokens (first time since start-up)", client.client_id)
         diag.debug("refresh ok client=%s grant=%s", client.client_id, grant["id"])
         return self._issue(grant["id"], grant["scope"])
 

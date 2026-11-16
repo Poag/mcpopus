@@ -16,7 +16,7 @@ data and secrets in memory, and the database. There is no sandbox. Therefore:
 | Concern | Measure |
 | --- | --- |
 | Token for one plugin used on another | Opaque tokens are bound to one canonical resource URL (`https://host/<plugin>`) and compared exactly; also checked at authorisation, so no token can be minted for a resource that is not a loaded plugin |
-| Unknown plugin vs bad credential | Same 401 body and headers for no token, bad token, another plugin's token and an unknown plugin; metadata is served for any well-formed name |
+| Unknown plugin vs bad credential | Same 401 body and headers for no token, bad token, another plugin's token and an unknown plugin; metadata is served for any well-formed name. One deliberate exception: a token this host issued that has simply expired (kept for a day past expiry) gets `error="invalid_token"` in the challenge (RFC 6750), so a client refreshes instead of signing in again; only someone already holding that token learns anything from it |
 | Plugin names and paths | Names match `^[a-z][a-z0-9-]{0,31}$`, minus reserved words; the first path segment only; deeper paths are 404 after authentication; plugin directories with other names are ignored |
 | Token theft from the database | Tokens, codes and session ids are stored as SHA-256 hashes (they carry 256 bits of randomness); client secrets likewise |
 | Stolen refresh token | Rotation on every use; reuse of a rotated token revokes the whole grant; authorisation-code reuse revokes what was issued from it |

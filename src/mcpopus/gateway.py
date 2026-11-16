@@ -50,18 +50,19 @@ class Gateway:
         self.stats, self.trust_proxy, self.record_ip = stats, trust_proxy, record_ip
         self._refused: dict[tuple[str | None, str], float] = {}
 
-    def _note_refusal(self, plugin: str, token: str, resource: str) -> None:
+    def _note_refusal(self, plugin: str, token: str, resource: str) -> str:
         """Say in the log why a presented token was refused (the caller still gets the one identical 401). An expired token is the
         normal 15 minute cycle and stays at debug level; everything else is what makes a client sign in again, so it is info,
         once per client and reason every five minutes."""
         reason, client = self.oauth.explain_access_failure(token, resource)
         key, now = (client, reason), time.monotonic()
         if now - self._refused.get(key, -1e9) < 300:
-            return
+            return reason
         self._refused[key] = now
         if len(self._refused) > 500:
             self._refused.clear()
         (log.debug if reason == "expired" else log.info)("access token refused for plugin %s (client %s): %s", plugin, client or "unknown", reason)
+        return reason
 
     def _note_agent(self, scope: Scope, client_id: str, plugin: str) -> None:
         """Record who is calling, from request headers only. Everything here is supplied by the caller (or by the proxy when
@@ -106,9 +107,11 @@ class Gateway:
         if principal is None:
             # Identical for: no token, bad token, token for another plugin, unknown plugin.
             log.debug("401 %s %r token_presented=%s ua=%r", scope["method"], path[:64], bool(auth), _header(scope, b"user-agent")[:100])
+            reason = ""
             if auth[:7].lower() == "bearer " and len(auth) < 512:
-                self._note_refusal(route.plugin, auth[7:].strip(), resource)
-            challenge = f'Bearer resource_metadata="{self.routing.metadata_url(route.plugin)}"'
+                reason = self._note_refusal(route.plugin, auth[7:].strip(), resource)
+            hint = 'error="invalid_token", error_description="The access token expired", ' if reason == "expired" else ""  # RFC 6750: a client should refresh, not sign in again
+            challenge = f'Bearer {hint}resource_metadata="{self.routing.metadata_url(route.plugin)}"'
             await _respond(send, 401, {"error": "unauthorized"}, [(b"www-authenticate", challenge.encode())])
             return
         if loaded is None:

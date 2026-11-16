@@ -85,3 +85,31 @@ async def test_deleting_a_client_leaves_no_grant_or_token_behind(running):
     gid = st.list_grants()[0]["id"]
     st.delete_client(reg["client_id"])
     assert st.get_grant(gid) is None and st._one("SELECT 1 FROM tokens WHERE grant_id=?", (gid,)) is None
+
+
+async def test_an_expired_token_is_told_to_refresh_but_other_failures_stay_identical(running, caplog):
+    caplog.set_level(logging.INFO)
+    reg, tok = await get_tokens(running, "hello")
+    st = running.host.store
+    async with httpx2.AsyncClient(base_url=running.base) as c:
+        none = await c.post("/hello/", json={})
+        junk = await c.post("/hello/", headers={"Authorization": "Bearer at_unknown_token"}, json={})
+        assert none.status_code == junk.status_code == 401 and none.text == junk.text
+        assert none.headers["www-authenticate"] == junk.headers["www-authenticate"] and "invalid_token" not in none.headers["www-authenticate"]
+        # expire the real token, and run the housekeeping: it is kept for a day, so it is recognised as expired, not unknown
+        from mcpopus.crypto import hash_token
+
+        st._run("UPDATE tokens SET expires_at=? WHERE token_hash=?", (time.time() - 60, hash_token(tok["access_token"])))
+        st.purge_expired()
+        r = await c.post("/hello/", headers={"Authorization": f"Bearer {tok['access_token']}"}, json={})
+        assert r.status_code == 401 and r.text == none.text
+        assert 'error="invalid_token"' in r.headers["www-authenticate"] and "resource_metadata=" in r.headers["www-authenticate"]
+        # a day later it is purged for good
+        st._run("UPDATE tokens SET expires_at=? WHERE token_hash=?", (time.time() - 2 * 86400, hash_token(tok["access_token"])))
+        st.purge_expired()
+        assert st.get_token(hash_token(tok["access_token"])) is None
+        # the first refresh of a client since start-up is logged once
+        for _ in range(2):
+            t = await c.post("/oauth/token", data={"grant_type": "refresh_token", "refresh_token": tok["refresh_token"], "client_id": reg["client_id"]})
+            tok = t.json() if t.status_code == 200 else tok
+        assert caplog.text.count("refreshed its tokens (first time since start-up)") == 1

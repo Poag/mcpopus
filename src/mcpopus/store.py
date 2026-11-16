@@ -221,7 +221,7 @@ class Store:
         now = time.time()
         self._run("DELETE FROM auth_requests WHERE expires_at<?", (now,))
         self._run("DELETE FROM codes WHERE expires_at<?", (now,))
-        self._run("DELETE FROM tokens WHERE expires_at<?", (now,))
+        self._run("DELETE FROM tokens WHERE expires_at<?", (now - 86400,))  # kept a day past expiry, so a late client is told "expired", not "unknown"
         self._run("DELETE FROM admin_sessions WHERE expires_at<?", (now,))
 
     # --- grants, codes, tokens --------------------------------------------
