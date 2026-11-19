@@ -174,3 +174,7 @@ All are environment variables. Required: `MCPOPUS_PUBLIC_URL`, one of `MCPOPUS_S
 | `MCPOPUS_ACCESS_LOG` | `false` | `true` prints one line per HTTP request (off by default; tool calls are in the audit log) |
 | `MCPOPUS_TRUST_PROXY_HEADERS` | `false` | `true` or `false`; use `CF-Connecting-IP` or `X-Forwarded-For` for rate limits |
 | `MCPOPUS_DATA_DIR`, `_CONFIG_DIR`, `_PLUGINS_DIR` | `/data`, `/config`, `/plugins` | |
+
+## Unraid
+
+Use the Community Applications template `mcpopus` from [Poag/docker-xml](https://github.com/Poag/docker-xml). It runs the container as `99:100` (`nobody:users`) so it can write to appdata. Set `MCPOPUS_SECRET_KEY` (`docker run --rm ghcr.io/poag/mcpopus:latest genkey`), `MCPOPUS_ADMIN_PASSWORD` and `MCPOPUS_OAUTH_PASSWORD`, and put your reverse proxy in front of port 8080. Keep 8081 (admin) on your LAN.
